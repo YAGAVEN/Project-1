@@ -1,0 +1,461 @@
+{
+  "info": {
+    "name": "Finance Tracker — P1 (Accounts & Categories)",
+    "description": "Setup (one time):\n1. Supabase dashboard → Authentication → Users → create a test user (or use an existing login).\n2. Collection variables (right-click collection → Edit): supabaseUrl, supabaseAnonKey, email, password.\n3. Run 'Supabase login' — it saves the JWT into {{accessToken}} automatically; every other request reuses it.\n4. Implement the stubs, then work top-to-bottom. Create requests store their ids into variables, so detail/update/delete just work.",
+    "_postman_id": "b1e2c3d4-0000-4000-8000-abcdef000001",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "supabaseUrl", "value": "https://ttqosjbjnpeioioiovsp.supabase.co" },
+    { "key": "supabaseAnonKey", "value": "PASTE-YOUR-ANON-KEY" },
+    { "key": "email", "value": "you@example.com" },
+    { "key": "password", "value": "your-password" },
+    { "key": "accessToken", "value": "" },
+    { "key": "bankAccountId", "value": "" },
+    { "key": "cashAccountId", "value": "" },
+    { "key": "cardAccountId", "value": "" },
+    { "key": "parentCategoryId", "value": "" },
+    { "key": "subCategoryId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0 · Login & sanity",
+      "item": [
+        {
+          "name": "Supabase login → saves {{accessToken}}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.access_token) {",
+                  "  pm.collectionVariables.set('accessToken', body.access_token);",
+                  "  console.log('accessToken saved — all requests now send it as Bearer');",
+                  "} else {",
+                  "  console.log('No access_token. Check email/password/anon key:', JSON.stringify(body));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{supabaseAnonKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
+              "host": ["{{supabaseUrl}}"],
+              "path": ["auth", "v1", "token"],
+              "query": [
+                { "key": "grant_type", "value": "password" }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Sanity: GET /me via Spring (proves the JWT works)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 · Accounts",
+      "item": [
+        {
+          "name": "Create BANK account → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('bankAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Savings\",\n  \"accountType\": \"BANK\",\n  \"openingBalance\": 25000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create CASH account → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('cashAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cash Wallet\",\n  \"accountType\": \"CASH\",\n  \"openingBalance\": 3000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create CREDIT_CARD → 201 (creditLimit required)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('cardAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Card\",\n  \"accountType\": \"CREDIT_CARD\",\n  \"openingBalance\": 0,\n  \"creditLimit\": 100000.00,\n  \"billingDay\": 5,\n  \"paymentDueDay\": 23\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create CARD without creditLimit → 400 (your service rule)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Card\",\n  \"accountType\": \"CREDIT_CARD\",\n  \"openingBalance\": 0\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create with blank name → 400 (bean validation)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"accountType\": \"BANK\",\n  \"openingBalance\": 100\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "List accounts → 200 (check balances)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        },
+        {
+          "name": "Detail: card → 200 with cardMetrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{cardAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{cardAccountId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update: rename bank → 200",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{bankAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{bankAccountId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Savings (renamed)\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete cash → 204",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{cashAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{cashAccountId}}"]
+            }
+          }
+        },
+        {
+          "name": "Re-GET deleted cash → 404 (not 403)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{cashAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{cashAccountId}}"]
+            }
+          }
+        },
+        {
+          "name": "No token → 401 (delete the Bearer header temporarily)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 · Categories",
+      "item": [
+        {
+          "name": "List defaults → 200 (seeded at provisioning)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            }
+          }
+        },
+        {
+          "name": "List EXPENSE only",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories?type=EXPENSE",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"],
+              "query": [{ "key": "type", "value": "EXPENSE" }]
+            }
+          }
+        },
+        {
+          "name": "Create parent category → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('parentCategoryId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Learning\",\n  \"categoryType\": \"EXPENSE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create subcategory under it → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201 created', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('subCategoryId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Books\",\n  \"categoryType\": \"EXPENSE\",\n  \"parentCategoryId\": \"{{parentCategoryId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Subcategory under a SUBCATEGORY → 400/409 (one level only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Java Books\",\n  \"categoryType\": \"EXPENSE\",\n  \"parentCategoryId\": \"{{subCategoryId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "INCOME under EXPENSE parent → 400 (type mismatch)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bonus\",\n  \"categoryType\": \"INCOME\",\n  \"parentCategoryId\": \"{{parentCategoryId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Rename subcategory → 200",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories/{{subCategoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories", "{{subCategoryId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Books & Courses\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete parent WITH active child → 204 but soft-deleted",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories/{{parentCategoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories", "{{parentCategoryId}}"]
+            }
+          }
+        },
+        {
+          "name": "Verify: parent gone from default list",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            }
+          }
+        },
+        {
+          "name": "Verify: parent visible with includeInactive=true",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories?includeInactive=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"],
+              "query": [{ "key": "includeInactive", "value": "true" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

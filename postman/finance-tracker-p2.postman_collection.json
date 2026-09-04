@@ -1,0 +1,692 @@
+{
+  "info": {
+    "name": "Finance Tracker — P2 (Transactions)",
+    "description": "Setup (one time):\n1. Create a FRESH test user in Supabase (Authentication → Users → Add user) — clean state gives exact numbers.\n2. Fill collection variables: supabaseAnonKey, email, password (supabaseUrl is prefilled).\n3. Run 'Supabase login' first — it stores the JWT and today's date. Everything else auto-wires via variables.\n\nRe-running duplicates transactions, so re-run against a fresh user for exact-number checks.",
+    "_postman_id": "b1e2c3d4-0000-4000-8000-abcdef000002",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "supabaseUrl", "value": "https://ttqosjbjnpeioioiovsp.supabase.co" },
+    { "key": "supabaseAnonKey", "value": "PASTE-YOUR-ANON-KEY" },
+    { "key": "email", "value": "you@example.com" },
+    { "key": "password", "value": "your-password" },
+    { "key": "accessToken", "value": "" },
+    { "key": "today", "value": "" },
+    { "key": "bankAccountId", "value": "" },
+    { "key": "cashAccountId", "value": "" },
+    { "key": "cardAccountId", "value": "" },
+    { "key": "incomeCategoryId", "value": "" },
+    { "key": "expenseCategoryId", "value": "" },
+    { "key": "incomeTxnId", "value": "" },
+    { "key": "expenseTxnId", "value": "" },
+    { "key": "cardTxnId", "value": "" },
+    { "key": "transferTxnId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0 · Login & setup",
+      "item": [
+        {
+          "name": "Supabase login → saves {{accessToken}} + {{today}}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('today', new Date().toISOString().slice(0, 10));",
+                  "const body = pm.response.json();",
+                  "if (body.access_token) {",
+                  "  pm.collectionVariables.set('accessToken', body.access_token);",
+                  "  console.log('accessToken saved, today =', pm.collectionVariables.get('today'));",
+                  "} else {",
+                  "  console.log('No access_token. Check email/password/anon key:', JSON.stringify(body));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{supabaseAnonKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
+              "host": ["{{supabaseUrl}}"],
+              "path": ["auth", "v1", "token"],
+              "query": [{ "key": "grant_type", "value": "password" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Sanity: GET /me",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "me"]
+            }
+          }
+        },
+        {
+          "name": "Setup: create BANK (opening 25000)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('bankAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Savings\",\n  \"accountType\": \"BANK\",\n  \"openingBalance\": 25000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Setup: create CASH (opening 3000)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('cashAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cash Wallet\",\n  \"accountType\": \"CASH\",\n  \"openingBalance\": 3000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Setup: create CREDIT_CARD (limit 100000)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('cardAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Card\",\n  \"accountType\": \"CREDIT_CARD\",\n  \"openingBalance\": 0,\n  \"creditLimit\": 100000.00,\n  \"billingDay\": 5,\n  \"paymentDueDay\": 23\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Setup: grab first INCOME category id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const first = body.find(c => c.categoryType === 'INCOME');",
+                  "pm.test('has INCOME categories', () => pm.expect(first).to.exist);",
+                  "if (first) pm.collectionVariables.set('incomeCategoryId', first.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories?type=INCOME",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"],
+              "query": [{ "key": "type", "value": "INCOME" }]
+            }
+          }
+        },
+        {
+          "name": "Setup: grab first EXPENSE category id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const first = body.find(c => c.categoryType === 'EXPENSE');",
+                  "pm.test('has EXPENSE categories', () => pm.expect(first).to.exist);",
+                  "if (first) pm.collectionVariables.set('expenseCategoryId', first.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories?type=EXPENSE",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"],
+              "query": [{ "key": "type", "value": "EXPENSE" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 · Create — happy paths",
+      "item": [
+        {
+          "name": "INCOME salary 50000 → bank (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('toAccountBalance = 75000', () => pm.expect(body.toAccountBalance).to.eql(75000));",
+                  "if (body.id) pm.collectionVariables.set('incomeTxnId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"INCOME\",\n  \"amount\": 50000.00,\n  \"toAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{incomeCategoryId}}\",\n  \"description\": \"Monthly salary\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "EXPENSE 450 Swiggy from bank (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('fromAccountBalance = 74550', () => pm.expect(body.fromAccountBalance).to.eql(74550));",
+                  "if (body.id) pm.collectionVariables.set('expenseTxnId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": 450.00,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{expenseCategoryId}}\",\n  \"description\": \"Lunch - Swiggy\",\n  \"transactionDate\": \"{{today}}\",\n  \"transactionTime\": \"13:30\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "EXPENSE 1500 from CARD (201 — cards may be spent from)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('card balance = -1500', () => pm.expect(body.fromAccountBalance).to.eql(-1500));",
+                  "if (body.id) pm.collectionVariables.set('cardTxnId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": 1500.00,\n  \"fromAccountId\": \"{{cardAccountId}}\",\n  \"categoryId\": \"{{expenseCategoryId}}\",\n  \"description\": \"Card - online order\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "TRANSFER 10000 bank → cash (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('from = 64550, to = 13000', () => {",
+                  "  pm.expect(body.fromAccountBalance).to.eql(64550);",
+                  "  pm.expect(body.toAccountBalance).to.eql(13000);",
+                  "});",
+                  "if (body.id) pm.collectionVariables.set('transferTxnId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"TRANSFER\",\n  \"amount\": 10000.00,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"toAccountId\": \"{{cashAccountId}}\",\n  \"description\": \"Withdraw cash\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 · Validation — error paths",
+      "item": [
+        {
+          "name": "INCOME into card → 409",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"INCOME\",\n  \"amount\": 500,\n  \"toAccountId\": \"{{cardAccountId}}\",\n  \"categoryId\": \"{{incomeCategoryId}}\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "TRANSFER to same account → 409",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"TRANSFER\",\n  \"amount\": 500,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"toAccountId\": \"{{bankAccountId}}\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Negative amount → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": -500,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{expenseCategoryId}}\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "LOAN_GIVEN via generic API → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"LOAN_GIVEN\",\n  \"amount\": 500,\n  \"fromAccountId\": \"{{cashAccountId}}\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "EXPENSE with INCOME category → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": 500,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{incomeCategoryId}}\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "INCOME with fromAccountId set → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"INCOME\",\n  \"amount\": 500,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"toAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{incomeCategoryId}}\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Unknown account UUID → 404",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": 500,\n  \"fromAccountId\": \"00000000-0000-4000-8000-000000000000\",\n  \"categoryId\": \"{{expenseCategoryId}}\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 · Read, filter, summary",
+      "item": [
+        {
+          "name": "List all → 200 (4 rows, date desc)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] }
+          }
+        },
+        {
+          "name": "Filter ?type=EXPENSE",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?type=EXPENSE",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions"],
+              "query": [{ "key": "type", "value": "EXPENSE" }]
+            }
+          }
+        },
+        {
+          "name": "Filter ?accountId={{bankAccountId}}",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?accountId={{bankAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions"],
+              "query": [{ "key": "accountId", "value": "{{bankAccountId}}" }]
+            }
+          }
+        },
+        {
+          "name": "Search ?q=swiggy",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?q=swiggy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions"],
+              "query": [{ "key": "q", "value": "swiggy" }]
+            }
+          }
+        },
+        {
+          "name": "Window ?from=&to= (today)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?from={{today}}&to={{today}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions"],
+              "query": [
+                { "key": "from", "value": "{{today}}" },
+                { "key": "to", "value": "{{today}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Summary ?periodType=MONTH → income 50000, expense 1950, net 48050",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('income = 50000', () => pm.expect(Number(body.income)).to.eql(50000));",
+                  "pm.test('expense = 1950', () => pm.expect(Number(body.expense)).to.eql(1950));",
+                  "pm.test('netCashFlow = 48050', () => pm.expect(Number(body.netCashFlow)).to.eql(48050));",
+                  "console.log('window:', JSON.stringify(body.window), 'count:', body.count);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/summary?periodType=MONTH",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions", "summary"],
+              "query": [{ "key": "periodType", "value": "MONTH" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 · Update & delete",
+      "item": [
+        {
+          "name": "GET {{expenseTxnId}}",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions/{{expenseTxnId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions", "{{expenseTxnId}}"] }
+          }
+        },
+        {
+          "name": "PUT amount 450 → 600 (200, balances recomputed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('amount updated', () => pm.expect(Number(body.amount)).to.eql(600));",
+                  "pm.test('fromAccountBalance recomputed to 74400', () => pm.expect(body.fromAccountBalance).to.eql(74400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions/{{expenseTxnId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions", "{{expenseTxnId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 600.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "PUT type INCOME → 400 (immutable)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions/{{expenseTxnId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions", "{{expenseTxnId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"INCOME\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "DELETE {{expenseTxnId}} → 204",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions/{{expenseTxnId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions", "{{expenseTxnId}}"] }
+          }
+        },
+        {
+          "name": "GET deleted → 404",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions/{{expenseTxnId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions", "{{expenseTxnId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 · Derived balances & account detail (P2 upgrades)",
+      "item": [
+        {
+          "name": "GET /accounts → derived balances",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "body.forEach(a => console.log(a.name, '=', a.balance));",
+                  "pm.test('bank = 65000', () => pm.expect(Number(body.find(a => a.name === 'HDFC Savings').balance)).to.eql(65000));",
+                  "pm.test('card = -1500', () => pm.expect(Number(body.find(a => a.name === 'HDFC Card').balance)).to.eql(-1500));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] }
+          }
+        },
+        {
+          "name": "Detail bank ?periodType=MONTH → moneyIn/out + trend + recent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('moneyIn = 50000', () => pm.expect(Number(body.moneyIn)).to.eql(50000));",
+                  "pm.test('moneyOut = 10000', () => pm.expect(Number(body.moneyOut)).to.eql(10000));",
+                  "pm.test('has trend + recent', () => {",
+                  "  pm.expect(body.balanceTrend.length).to.be.above(0);",
+                  "  pm.expect(body.recentTransactions.length).to.be.above(0);",
+                  "});",
+                  "console.log('trend points:', body.balanceTrend.length, 'recent:', body.recentTransactions.length);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{bankAccountId}}?periodType=MONTH",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", "{{bankAccountId}}"],
+              "query": [{ "key": "periodType", "value": "MONTH" }]
+            }
+          }
+        },
+        {
+          "name": "Detail card → outstanding 1500, availableCredit 98500",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('cardMetrics', () => {",
+                  "  pm.expect(Number(body.cardMetrics.outstanding)).to.eql(1500);",
+                  "  pm.expect(Number(body.cardMetrics.availableCredit)).to.eql(98500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts/{{cardAccountId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts", "{{cardAccountId}}"] }
+          }
+        },
+        {
+          "name": "DELETE bank (has transactions) → 204 but SOFT",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts/{{bankAccountId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts", "{{bankAccountId}}"] }
+          }
+        },
+        {
+          "name": "GET deleted bank → still exists, isActive: false",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 still exists', () => pm.response.to.have.status(200));",
+                  "pm.test('isActive false', () => pm.expect(body.isActive).to.be.false);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts/{{bankAccountId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts", "{{bankAccountId}}"] }
+          }
+        }
+      ]
+    }
+  ]
+}

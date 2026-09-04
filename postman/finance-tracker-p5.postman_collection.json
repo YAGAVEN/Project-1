@@ -1,0 +1,573 @@
+{
+  "info": {
+    "name": "Finance Tracker — P5 (Goals & Contributions)",
+    "description": "IMPORTANT: use a FRESH Supabase test user — assertions check exact amounts.\n\nScenario built by the collection:\n  Goal: Emergency Fund, target 50000.\n  Contribute 20000 (40%) + 25000 (90%) → 5000 → exactly 100% → auto-COMPLETED.\n  Delete that contribution → reopens to ACTIVE at 90%.\n  Then the §8.8 flow: TRANSFER 10000 bank→investment, contribute 10000 LINKED to it → 110%, COMPLETED again.\n  Key invariant: contributions NEVER move money — balances change only because of the TRANSFER.",
+    "_postman_id": "b1e2c3d4-0000-4000-8000-abcdef000005",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "supabaseUrl", "value": "https://ttqosjbjnpeioioiovsp.supabase.co" },
+    { "key": "supabaseAnonKey", "value": "PASTE-YOUR-ANON-KEY" },
+    { "key": "email", "value": "you@example.com" },
+    { "key": "password", "value": "your-password" },
+    { "key": "accessToken", "value": "" },
+    { "key": "today", "value": "" },
+    { "key": "bankAccountId", "value": "" },
+    { "key": "investAccountId", "value": "" },
+    { "key": "goalId", "value": "" },
+    { "key": "transferId", "value": "" },
+    { "key": "contributionId3", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0 · Login & setup",
+      "item": [
+        {
+          "name": "Supabase login → saves {{accessToken}} + {{today}}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('today', new Date().toISOString().slice(0, 10));",
+                  "const body = pm.response.json();",
+                  "if (body.access_token) {",
+                  "  pm.collectionVariables.set('accessToken', body.access_token);",
+                  "  console.log('accessToken saved, today =', pm.collectionVariables.get('today'));",
+                  "} else {",
+                  "  console.log('No access_token. Check email/password/anon key:', JSON.stringify(body));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{supabaseAnonKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
+              "host": ["{{supabaseUrl}}"],
+              "path": ["auth", "v1", "token"],
+              "query": [{ "key": "grant_type", "value": "password" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Sanity: GET /me",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          }
+        },
+        {
+          "name": "Create BANK 25000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('bankAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Savings\",\n  \"accountType\": \"BANK\",\n  \"openingBalance\": 25000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create INVESTMENT account (for the linked-transfer flow)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('investAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Zerodha\",\n  \"accountType\": \"INVESTMENT\",\n  \"openingBalance\": 0\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 · Goal lifecycle",
+      "item": [
+        {
+          "name": "Create goal Emergency Fund / target 50000 → 201, fresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('fresh goal: 0%, ACTIVE', () => {",
+                  "  pm.expect(Number(body.progress)).to.eql(0);",
+                  "  pm.expect(body.percentage).to.eql(0);",
+                  "  pm.expect(body.status).to.eql('ACTIVE');",
+                  "});",
+                  "if (body.id) pm.collectionVariables.set('goalId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Emergency Fund\",\n  \"targetAmount\": 50000.00,\n  \"targetDate\": \"2026-12-31\",\n  \"description\": \"Six months of expenses\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Contribute 20000 → 40%",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('progress 20000 = 40%', () => {",
+                  "  pm.expect(Number(body.progress)).to.eql(20000);",
+                  "  pm.expect(body.percentage).to.eql(40);",
+                  "  pm.expect(body.status).to.eql('ACTIVE');",
+                  "  pm.expect(body.progressSeries.length).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 20000.00,\n  \"contributionDate\": \"{{today}}\",\n  \"notes\": \"First stash\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Contribute 25000 → 90%",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('progress 45000 = 90%, still ACTIVE', () => {",
+                  "  pm.expect(Number(body.progress)).to.eql(45000);",
+                  "  pm.expect(body.percentage).to.eql(90);",
+                  "  pm.expect(body.status).to.eql('ACTIVE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 25000.00,\n  \"contributionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "GET detail → cumulative series [20000, 45000]",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('series is cumulative', () => {",
+                  "  pm.expect(Number(body.progressSeries[0].progress)).to.eql(20000);",
+                  "  pm.expect(Number(body.progressSeries[1].progress)).to.eql(45000);",
+                  "});",
+                  "pm.test('2 contributions', () => pm.expect(body.contributions.length).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}"] }
+          }
+        },
+        {
+          "name": "Contribute 5000 → exactly 100% → auto-COMPLETED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('50000 = 100% → COMPLETED automatically', () => {",
+                  "  pm.expect(Number(body.progress)).to.eql(50000);",
+                  "  pm.expect(body.percentage).to.eql(100);",
+                  "  pm.expect(body.status).to.eql('COMPLETED');",
+                  "});",
+                  "pm.collectionVariables.set('contributionId3', body.contributions[2].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 5000.00,\n  \"contributionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "GET /goals?status=COMPLETED → 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('1 COMPLETED', () => {",
+                  "  pm.expect(body.length).to.eql(1);",
+                  "  pm.expect(body[0].status).to.eql('COMPLETED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/goals?status=COMPLETED",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "goals"],
+              "query": [{ "key": "status", "value": "COMPLETED" }]
+            }
+          }
+        },
+        {
+          "name": "DELETE contribution 3 → reopens to ACTIVE at 90%",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions/{{contributionId3}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions", "{{contributionId3}}"] }
+          }
+        },
+        {
+          "name": "GET detail → ACTIVE, 45000, 2 contributions again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('reopened', () => {",
+                  "  pm.expect(Number(body.progress)).to.eql(45000);",
+                  "  pm.expect(body.status).to.eql('ACTIVE');",
+                  "  pm.expect(body.contributions.length).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 · Linked transfer (§8.8 flow)",
+      "item": [
+        {
+          "name": "TRANSFER 10000 bank → Zerodha (the real money movement)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('transferId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"TRANSFER\",\n  \"amount\": 10000.00,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"toAccountId\": \"{{investAccountId}}\",\n  \"description\": \"Moved to investments for the goal\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Contribute 10000 LINKED to the transfer → 110% COMPLETED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('progress 55000 = 110% → COMPLETED', () => {",
+                  "  pm.expect(Number(body.progress)).to.eql(55000);",
+                  "  pm.expect(body.percentage).to.eql(110);",
+                  "  pm.expect(body.status).to.eql('COMPLETED');",
+                  "});",
+                  "pm.test('contribution carries the linked transfer id', () => {",
+                  "  const last = body.contributions[body.contributions.length - 1];",
+                  "  pm.expect(last.transactionId).to.eql(pm.collectionVariables.get('transferId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000.00,\n  \"contributionDate\": \"{{today}}\",\n  \"notes\": \"Moved savings\",\n  \"transactionId\": \"{{transferId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 · Rules",
+      "item": [
+        {
+          "name": "Negative contribution → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": -100,\n  \"contributionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Contribution with unknown transactionId → 404",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100,\n  \"contributionDate\": \"{{today}}\",\n  \"transactionId\": \"00000000-0000-4000-8000-000000000000\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "PUT status COMPLETED → 400 (service-managed only)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "PUT status CANCELLED → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('CANCELLED', () => pm.expect(body.status).to.eql('CANCELLED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELLED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Contribute to CANCELLED goal → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100,\n  \"contributionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "DELETE goal with contributions → 204 but soft-cancelled",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}"] }
+          }
+        },
+        {
+          "name": "GET /goals → still there, CANCELLED, progress kept",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('cancelled with history intact', () => {",
+                  "  const goal = body.find(g => g.name === 'Emergency Fund');",
+                  "  pm.expect(goal.status).to.eql('CANCELLED');",
+                  "  pm.expect(Number(goal.progress)).to.eql(55000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/goals", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 · Hard delete & balance invariance",
+      "item": [
+        {
+          "name": "Create + hard-delete an untouched goal → gone for real",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('secondGoalId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Temporary\",\n  \"targetAmount\": 1000\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "DELETE the untouched goal → 204 hard delete",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{secondGoalId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{secondGoalId}}"] }
+          }
+        },
+        {
+          "name": "GET /accounts → BANK 15000, Zerodha 10000 (only the TRANSFER moved money)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('BANK = 15000', () => pm.expect(Number(body.find(a => a.name === 'HDFC Savings').balance)).to.eql(15000));",
+                  "pm.test('Zerodha = 10000', () => pm.expect(Number(body.find(a => a.name === 'Zerodha').balance)).to.eql(10000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] }
+          }
+        }
+      ]
+    }
+  ]
+}

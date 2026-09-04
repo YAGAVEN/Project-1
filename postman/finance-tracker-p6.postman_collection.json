@@ -1,0 +1,557 @@
+{
+  "info": {
+    "name": "Finance Tracker — P6 (Analytics)",
+    "description": "IMPORTANT: use a FRESH Supabase test user — assertions check exact amounts.\n\nScenario built by the collection (today is 'T'):\n  BANK 20000, CASH 3000. One EXPENSE category reused. Goal 'Car' target 100000.\n  Contributions: 5000 dated last month (becomes the cumulative BASE) + 3000 today.\n  INCOME 50000 → bank (T) · EXPENSE 2000 (bank, T) · EXPENSE 1000 (cash, T)\n  EXPENSE 500 dated LAST MONTH (must be excluded from MONTH windows)\n  TRANSFER 1000 bank→cash (never enters income/expense)\n\nExpected MONTH window: income 50000, expense 3000, Food 100%,\ncashflow bank in 50000/out 3000, savings cumulative 5000 → 8000.",
+    "_postman_id": "b1e2c3d4-0000-4000-8000-abcdef000006",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "supabaseUrl", "value": "https://ttqosjbjnpeioioiovsp.supabase.co" },
+    { "key": "supabaseAnonKey", "value": "PASTE-YOUR-ANON-KEY" },
+    { "key": "email", "value": "you@example.com" },
+    { "key": "password", "value": "your-password" },
+    { "key": "accessToken", "value": "" },
+    { "key": "today", "value": "" },
+    { "key": "lastMonth", "value": "" },
+    { "key": "bankAccountId", "value": "" },
+    { "key": "cashAccountId", "value": "" },
+    { "key": "expenseCategoryId", "value": "" },
+    { "key": "incomeCategoryId", "value": "" },
+    { "key": "goalId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0 · Login & setup",
+      "item": [
+        {
+          "name": "Supabase login → {{accessToken}} + {{today}} + {{lastMonth}}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('today', new Date().toISOString().slice(0, 10));",
+                  "const d = new Date();",
+                  "d.setMonth(d.getMonth() - 1);",
+                  "pm.collectionVariables.set('lastMonth', d.toISOString().slice(0, 10));",
+                  "const body = pm.response.json();",
+                  "if (body.access_token) {",
+                  "  pm.collectionVariables.set('accessToken', body.access_token);",
+                  "  console.log('token saved, today =', pm.collectionVariables.get('today'), ', lastMonth =', pm.collectionVariables.get('lastMonth'));",
+                  "} else {",
+                  "  console.log('No access_token. Check email/password/anon key:', JSON.stringify(body));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{supabaseAnonKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
+              "host": ["{{supabaseUrl}}"],
+              "path": ["auth", "v1", "token"],
+              "query": [{ "key": "grant_type", "value": "password" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Sanity: GET /me",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          }
+        },
+        {
+          "name": "Create BANK 20000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('bankAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Savings\",\n  \"accountType\": \"BANK\",\n  \"openingBalance\": 20000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create CASH 3000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('cashAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cash Wallet\",\n  \"accountType\": \"CASH\",\n  \"openingBalance\": 3000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Grab first EXPENSE category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const first = body.find(c => c.categoryType === 'EXPENSE');",
+                  "if (first) pm.collectionVariables.set('expenseCategoryId', first.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories?type=EXPENSE",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"],
+              "query": [{ "key": "type", "value": "EXPENSE" }]
+            }
+          }
+        },
+        {
+          "name": "Grab first INCOME category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const first = body.find(c => c.categoryType === 'INCOME');",
+                  "if (first) pm.collectionVariables.set('incomeCategoryId', first.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories?type=INCOME",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"],
+              "query": [{ "key": "type", "value": "INCOME" }]
+            }
+          }
+        },
+        {
+          "name": "Create goal Car (target 100000)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('goalId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Car\",\n  \"targetAmount\": 100000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Contribution 5000 LAST MONTH (the cumulative base)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 5000.00,\n  \"contributionDate\": \"{{lastMonth}}\",\n  \"notes\": \"Old stash\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Contribution 3000 today",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/goals/{{goalId}}/contributions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "goals", "{{goalId}}", "contributions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 3000.00,\n  \"contributionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "INCOME 50000 → bank (today)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"INCOME\",\n  \"amount\": 50000.00,\n  \"toAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{incomeCategoryId}}\",\n  \"description\": \"Monthly salary\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "EXPENSE 2000 from bank (today)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": 2000.00,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{expenseCategoryId}}\",\n  \"description\": \"Groceries\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "EXPENSE 1000 from cash (today)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": 1000.00,\n  \"fromAccountId\": \"{{cashAccountId}}\",\n  \"categoryId\": \"{{expenseCategoryId}}\",\n  \"description\": \"Auto rickshaw\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "EXPENSE 500 from bank LAST MONTH (window-exclusion test)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": 500.00,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{expenseCategoryId}}\",\n  \"description\": \"Old bill\",\n  \"transactionDate\": \"{{lastMonth}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "TRANSFER 1000 bank → cash (invisible to income/expense)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"TRANSFER\",\n  \"amount\": 1000.00,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"toAccountId\": \"{{cashAccountId}}\",\n  \"description\": \"Cash withdrawal\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 · Analytics endpoints",
+      "item": [
+        {
+          "name": "income-expense MONTH → today's bucket 50000 / 3000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('series covers the month', () => pm.expect(body.series.length).to.be.at.least(28));",
+                  "let income = 0, expense = 0;",
+                  "body.series.forEach(p => { income += Number(p.income); expense += Number(p.expense); });",
+                  "pm.test('income 50000, expense 3000 (500 excluded, transfer invisible)', () => {",
+                  "  pm.expect(income).to.eql(50000);",
+                  "  pm.expect(expense).to.eql(3000);",
+                  "});",
+                  "const todayBucket = body.series.find(p => p.bucket === pm.collectionVariables.get('today'));",
+                  "pm.test('today bucket = 50000 / 3000', () => {",
+                  "  pm.expect(Number(todayBucket.income)).to.eql(50000);",
+                  "  pm.expect(Number(todayBucket.expense)).to.eql(3000);",
+                  "});",
+                  "console.log('period:', JSON.stringify(body.period));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/income-expense?periodType=MONTH",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "income-expense"],
+              "query": [{ "key": "periodType", "value": "MONTH" }]
+            }
+          }
+        },
+        {
+          "name": "spending-trend MONTH → Σ expense 3000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "let expense = 0;",
+                  "body.series.forEach(p => expense += Number(p.expense));",
+                  "pm.test('Σ expense = 3000', () => pm.expect(expense).to.eql(3000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/spending-trend?periodType=MONTH",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "spending-trend"],
+              "query": [{ "key": "periodType", "value": "MONTH" }]
+            }
+          }
+        },
+        {
+          "name": "spending-trend YEAR → 12 monthly buckets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('12 buckets', () => pm.expect(body.series.length).to.eql(12));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/spending-trend?periodType=YEAR",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "spending-trend"],
+              "query": [{ "key": "periodType", "value": "YEAR" }]
+            }
+          }
+        },
+        {
+          "name": "expense-categories MONTH → 3000 total, 100%",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('totalExpense 3000', () => pm.expect(Number(body.totalExpense)).to.eql(3000));",
+                  "pm.test('one slice at 100%, sorted first', () => {",
+                  "  pm.expect(body.categories.length).to.eql(1);",
+                  "  pm.expect(Number(body.categories[0].amount)).to.eql(3000);",
+                  "  pm.expect(body.categories[0].percentage).to.eql(100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/expense-categories?periodType=MONTH",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "expense-categories"],
+              "query": [{ "key": "periodType", "value": "MONTH" }]
+            }
+          }
+        },
+        {
+          "name": "expense-categories YEAR → includes last month's 500",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('totalExpense at least 3000 (3500 when lastMonth is the same year)', () => {",
+                  "  pm.expect(Number(body.totalExpense)).to.be.at.least(3000);",
+                  "});",
+                  "console.log('YEAR totalExpense:', body.totalExpense);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/expense-categories?periodType=YEAR",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "expense-categories"],
+              "query": [{ "key": "periodType", "value": "YEAR" }]
+            }
+          }
+        },
+        {
+          "name": "savings-progress MONTH → starts at base 5000, ends 8000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('base from BEFORE the window = 5000', () => {",
+                  "  pm.expect(Number(body.series[0].cumulative)).to.eql(5000);",
+                  "});",
+                  "pm.test('ends at 8000', () => {",
+                  "  const last = body.series[body.series.length - 1];",
+                  "  pm.expect(Number(last.cumulative)).to.eql(8000);",
+                  "});",
+                  "pm.test('goalId null when covering all goals', () => pm.expect(body.goalId).to.eql(null));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/savings-progress?periodType=MONTH",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "savings-progress"],
+              "query": [{ "key": "periodType", "value": "MONTH" }]
+            }
+          }
+        },
+        {
+          "name": "savings-progress ?goalId= → same numbers, goal echoed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('goalId echoed', () => pm.expect(body.goalId).to.eql(pm.collectionVariables.get('goalId')));",
+                  "const last = body.series[body.series.length - 1];",
+                  "pm.test('ends at 8000', () => pm.expect(Number(last.cumulative)).to.eql(8000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/savings-progress?periodType=MONTH&goalId={{goalId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "savings-progress"],
+              "query": [
+                { "key": "periodType", "value": "MONTH" },
+                { "key": "goalId", "value": "{{goalId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "savings-progress with unknown goalId → 404",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/savings-progress?goalId=00000000-0000-4000-8000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "savings-progress"],
+              "query": [{ "key": "goalId", "value": "00000000-0000-4000-8000-000000000000" }]
+            }
+          }
+        },
+        {
+          "name": "account-cashflow MONTH → bank in 50000 / out 3000, cash in 1000 / out 1000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const bank = body.accounts.find(a => a.name === 'HDFC Savings');",
+                  "const cash = body.accounts.find(a => a.name === 'Cash Wallet');",
+                  "pm.test('BANK in 50000 out 3000', () => {",
+                  "  pm.expect(Number(bank.moneyIn)).to.eql(50000);",
+                  "  pm.expect(Number(bank.moneyOut)).to.eql(3000);",
+                  "});",
+                  "pm.test('CASH in 1000 out 1000', () => {",
+                  "  pm.expect(Number(cash.moneyIn)).to.eql(1000);",
+                  "  pm.expect(Number(cash.moneyOut)).to.eql(1000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/account-cashflow?periodType=MONTH",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "account-cashflow"],
+              "query": [{ "key": "periodType", "value": "MONTH" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

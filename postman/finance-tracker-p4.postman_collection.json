@@ -1,0 +1,588 @@
+{
+  "info": {
+    "name": "Finance Tracker — P4 (Contacts, Loans & Repayments)",
+    "description": "IMPORTANT: use a FRESH Supabase test user — assertions check exact amounts.\n\nScenario built by the collection:\n  Accounts: BANK 20000, CASH 1000. Contact: Arun.\n  Lend Arun 5000 from CASH  → CASH drops to -4000 (real money movement!)\n  Borrow 10000 from Arun into BANK → BANK rises to 30000\n  Repay 2000 then 3000 → loan PAID; delete the 3000 payment → back to ACTIVE\n  Dashboard: receivable 3000, payable 10000, income 0, expense 0\n  (LOAN_* types never touch income/expense — lending is not spending.)",
+    "_postman_id": "b1e2c3d4-0000-4000-8000-abcdef000004",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "supabaseUrl", "value": "https://ttqosjbjnpeioioiovsp.supabase.co" },
+    { "key": "supabaseAnonKey", "value": "PASTE-YOUR-ANON-KEY" },
+    { "key": "email", "value": "you@example.com" },
+    { "key": "password", "value": "your-password" },
+    { "key": "accessToken", "value": "" },
+    { "key": "today", "value": "" },
+    { "key": "bankAccountId", "value": "" },
+    { "key": "cashAccountId", "value": "" },
+    { "key": "cardAccountId", "value": "" },
+    { "key": "contactId", "value": "" },
+    { "key": "lentLoanId", "value": "" },
+    { "key": "borrowedLoanId", "value": "" },
+    { "key": "paymentId2", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0 · Login & setup",
+      "item": [
+        {
+          "name": "Supabase login → saves {{accessToken}} + {{today}}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('today', new Date().toISOString().slice(0, 10));",
+                  "const body = pm.response.json();",
+                  "if (body.access_token) {",
+                  "  pm.collectionVariables.set('accessToken', body.access_token);",
+                  "  console.log('accessToken saved, today =', pm.collectionVariables.get('today'));",
+                  "} else {",
+                  "  console.log('No access_token. Check email/password/anon key:', JSON.stringify(body));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{supabaseAnonKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
+              "host": ["{{supabaseUrl}}"],
+              "path": ["auth", "v1", "token"],
+              "query": [{ "key": "grant_type", "value": "password" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Sanity: GET /me",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          }
+        },
+        {
+          "name": "Create BANK 20000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('bankAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Savings\",\n  \"accountType\": \"BANK\",\n  \"openingBalance\": 20000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create CASH 1000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('cashAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cash Wallet\",\n  \"accountType\": \"CASH\",\n  \"openingBalance\": 1000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create CARD (for the rejection test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('cardAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Card\",\n  \"accountType\": \"CREDIT_CARD\",\n  \"openingBalance\": 0,\n  \"creditLimit\": 50000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create contact Arun",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('contactId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/contacts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "contacts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Arun\",\n  \"notes\": \"College friend\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 · Loans create & list",
+      "item": [
+        {
+          "name": "LENT 5000 from CASH → 201, money leaves CASH",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('outstanding 5000 ACTIVE', () => {",
+                  "  pm.expect(Number(body.outstanding)).to.eql(5000);",
+                  "  pm.expect(body.status).to.eql('ACTIVE');",
+                  "  pm.expect(body.loanType).to.eql('LENT');",
+                  "  pm.expect(body.contactName).to.eql('Arun');",
+                  "});",
+                  "if (body.id) pm.collectionVariables.set('lentLoanId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/loans", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contactId\": \"{{contactId}}\",\n  \"loanType\": \"LENT\",\n  \"amount\": 5000.00,\n  \"loanDate\": \"{{today}}\",\n  \"accountId\": \"{{cashAccountId}}\",\n  \"description\": \"Helped with rent\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "BORROWED 10000 into BANK → 201, money enters BANK",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('outstanding 10000 ACTIVE', () => {",
+                  "  pm.expect(Number(body.outstanding)).to.eql(10000);",
+                  "  pm.expect(body.loanType).to.eql('BORROWED');",
+                  "});",
+                  "if (body.id) pm.collectionVariables.set('borrowedLoanId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/loans", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contactId\": \"{{contactId}}\",\n  \"loanType\": \"BORROWED\",\n  \"amount\": 10000.00,\n  \"loanDate\": \"{{today}}\",\n  \"accountId\": \"{{bankAccountId}}\",\n  \"description\": \"Emergency loan from Arun\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "LENT from CARD → 400 (cash advance out of scope)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/loans", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contactId\": \"{{contactId}}\",\n  \"loanType\": \"LENT\",\n  \"amount\": 1000,\n  \"loanDate\": \"{{today}}\",\n  \"accountId\": \"{{cardAccountId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "GET /accounts → CASH -4000, BANK 30000 (real movement)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('CASH = -4000 after lending', () => pm.expect(Number(body.find(a => a.name === 'Cash Wallet').balance)).to.eql(-4000));",
+                  "pm.test('BANK = 30000 after borrowing', () => pm.expect(Number(body.find(a => a.name === 'HDFC Savings').balance)).to.eql(30000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] }
+          }
+        },
+        {
+          "name": "GET /loans → 2 items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('2 loans', () => pm.expect(body.length).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans"] }
+          }
+        },
+        {
+          "name": "GET /loans?direction=LENT → 1 item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('1 LENT', () => {",
+                  "  pm.expect(body.length).to.eql(1);",
+                  "  pm.expect(body[0].loanType).to.eql('LENT');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/loans?direction=LENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "loans"],
+              "query": [{ "key": "direction", "value": "LENT" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 · Repayments",
+      "item": [
+        {
+          "name": "Pay 2000 → outstanding 3000, BANK +2000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('outstanding 3000, still ACTIVE', () => {",
+                  "  pm.expect(Number(body.outstanding)).to.eql(3000);",
+                  "  pm.expect(body.status).to.eql('ACTIVE');",
+                  "  pm.expect(body.payments.length).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{lentLoanId}}/payments", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{lentLoanId}}", "payments"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 2000.00,\n  \"paymentDate\": \"{{today}}\",\n  \"accountId\": \"{{bankAccountId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Pay 3000 → outstanding 0, status flips to PAID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('outstanding 0 → PAID', () => {",
+                  "  pm.expect(Number(body.outstanding)).to.eql(0);",
+                  "  pm.expect(body.status).to.eql('PAID');",
+                  "  pm.expect(body.payments.length).to.eql(2);",
+                  "});",
+                  "pm.collectionVariables.set('paymentId2', body.payments[1].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{lentLoanId}}/payments", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{lentLoanId}}", "payments"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 3000.00,\n  \"paymentDate\": \"{{today}}\",\n  \"accountId\": \"{{bankAccountId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Pay again → 400 (exceeds outstanding)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{lentLoanId}}/payments", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{lentLoanId}}", "payments"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100,\n  \"paymentDate\": \"{{today}}\",\n  \"accountId\": \"{{bankAccountId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "DELETE paid loan → 409 (has payments)",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{lentLoanId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{lentLoanId}}"] }
+          }
+        },
+        {
+          "name": "DELETE payment 2 → 204, loan back to ACTIVE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{lentLoanId}}/payments/{{paymentId2}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{lentLoanId}}", "payments", "{{paymentId2}}"] }
+          }
+        },
+        {
+          "name": "GET loan detail → outstanding 3000, ACTIVE, 1 payment left",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('reopened: outstanding 3000 ACTIVE', () => {",
+                  "  pm.expect(Number(body.outstanding)).to.eql(3000);",
+                  "  pm.expect(body.status).to.eql('ACTIVE');",
+                  "  pm.expect(body.payments.length).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{lentLoanId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{lentLoanId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 · Contacts & summary",
+      "item": [
+        {
+          "name": "GET /contacts/{id} → summary netPending -7000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('summary math', () => {",
+                  "  pm.expect(Number(body.totalLent)).to.eql(5000);",
+                  "  pm.expect(Number(body.totalReturned)).to.eql(2000);",
+                  "  pm.expect(Number(body.totalBorrowed)).to.eql(10000);",
+                  "  pm.expect(Number(body.totalRepaid)).to.eql(0);",
+                  "  pm.expect(Number(body.netPending)).to.eql(-7000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/contacts/{{contactId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "contacts", "{{contactId}}"] }
+          }
+        },
+        {
+          "name": "DELETE contact → 409 (loans reference Arun)",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/contacts/{{contactId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "contacts", "{{contactId}}"] }
+          }
+        },
+        {
+          "name": "PUT loan description → 200 (amount has no field: immutable)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('description updated', () => pm.expect(body.description).to.eql('Emergency loan from Arun K'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/loans/{{borrowedLoanId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "loans", "{{borrowedLoanId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Emergency loan from Arun K\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 · Dashboard integration",
+      "item": [
+        {
+          "name": "GET /dashboard → receivable 3000, payable 10000, income 0, expense 0",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('loansSummary stops being zeros', () => {",
+                  "  pm.expect(Number(body.loansSummary.totalReceivable)).to.eql(3000);",
+                  "  pm.expect(Number(body.loansSummary.totalPayable)).to.eql(10000);",
+                  "});",
+                  "pm.test('LOAN_* never enter income/expense', () => {",
+                  "  pm.expect(Number(body.totals.income)).to.eql(0);",
+                  "  pm.expect(Number(body.totals.expense)).to.eql(0);",
+                  "  pm.expect(Number(body.totals.netCashFlow)).to.eql(0);",
+                  "});",
+                  "pm.test('totalBalance = 28000 (32000 bank + -4000 cash)', () => {",
+                  "  pm.expect(Number(body.totals.totalBalance)).to.eql(28000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard?periodType=MONTH",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "dashboard"],
+              "query": [{ "key": "periodType", "value": "MONTH" }]
+            }
+          }
+        },
+        {
+          "name": "GET /transactions → LOAN_* rows visible in the ledger",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const types = body.content.map(t => t.transactionType);",
+                  "console.log('ledger types:', types);",
+                  "pm.test('origin + repayment transactions exist', () => {",
+                  "  pm.expect(types).to.include('LOAN_GIVEN');",
+                  "  pm.expect(types).to.include('LOAN_RECEIVED');",
+                  "  pm.expect(types).to.include('LOAN_REPAYMENT_IN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] }
+          }
+        }
+      ]
+    }
+  ]
+}

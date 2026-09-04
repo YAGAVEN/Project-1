@@ -1,0 +1,603 @@
+{
+  "info": {
+    "name": "Finance Tracker — P3 (Budgets & Dashboard)",
+    "description": "IMPORTANT: use a FRESH Supabase test user — the assertions check exact rupee amounts (₹70,000 total balance, 80.0% budget usage, etc.) that only hold on a clean account.\n\nSetup:\n1. Supabase dashboard → Authentication → Users → Add user.\n2. Fill variables: supabaseAnonKey, email, password.\n3. Send 'Supabase login' first (stores JWT + today), then run folders top to bottom.\n\nScenario built by the collection:\n  Accounts: BANK 25000, CASH 3000, CARD limit 100000\n  Budget: Dining / MONTHLY / limit 10000\n  Txns: +50000 salary (bank), -4500 (bank), -3500 (card) → 80% = WARNING boundary\n  Transfer 2000 bank→cash (must NOT touch budget or income/expense)\n  Expected dashboard: totalBalance 70000, income 50000, expense 8000, net 42000",
+    "_postman_id": "b1e2c3d4-0000-4000-8000-abcdef000003",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "supabaseUrl", "value": "https://ttqosjbjnpeioioiovsp.supabase.co" },
+    { "key": "supabaseAnonKey", "value": "PASTE-YOUR-ANON-KEY" },
+    { "key": "email", "value": "you@example.com" },
+    { "key": "password", "value": "your-password" },
+    { "key": "accessToken", "value": "" },
+    { "key": "today", "value": "" },
+    { "key": "bankAccountId", "value": "" },
+    { "key": "cashAccountId", "value": "" },
+    { "key": "cardAccountId", "value": "" },
+    { "key": "diningCategoryId", "value": "" },
+    { "key": "incomeCategoryId", "value": "" },
+    { "key": "budgetId", "value": "" },
+    { "key": "weeklyBudgetId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0 · Login & setup",
+      "item": [
+        {
+          "name": "Supabase login → saves {{accessToken}} + {{today}}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('today', new Date().toISOString().slice(0, 10));",
+                  "const body = pm.response.json();",
+                  "if (body.access_token) {",
+                  "  pm.collectionVariables.set('accessToken', body.access_token);",
+                  "  console.log('accessToken saved, today =', pm.collectionVariables.get('today'));",
+                  "} else {",
+                  "  console.log('No access_token. Check email/password/anon key:', JSON.stringify(body));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{supabaseAnonKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
+              "host": ["{{supabaseUrl}}"],
+              "path": ["auth", "v1", "token"],
+              "query": [{ "key": "grant_type", "value": "password" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Sanity: GET /me",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          }
+        },
+        {
+          "name": "Create BANK 25000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('bankAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Savings\",\n  \"accountType\": \"BANK\",\n  \"openingBalance\": 25000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create CASH 3000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('cashAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cash Wallet\",\n  \"accountType\": \"CASH\",\n  \"openingBalance\": 3000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create CARD (limit 100000)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('cardAccountId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/accounts", "host": ["{{baseUrl}}"], "path": ["api", "v1", "accounts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"HDFC Card\",\n  \"accountType\": \"CREDIT_CARD\",\n  \"openingBalance\": 0,\n  \"creditLimit\": 100000.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create category Dining (EXPENSE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.id) pm.collectionVariables.set('diningCategoryId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/categories", "host": ["{{baseUrl}}"], "path": ["api", "v1", "categories"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dining\",\n  \"categoryType\": \"EXPENSE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Grab first INCOME category id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const first = body.find(c => c.categoryType === 'INCOME');",
+                  "if (first) pm.collectionVariables.set('incomeCategoryId', first.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories?type=INCOME",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"],
+              "query": [{ "key": "type", "value": "INCOME" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 · Budget rules",
+      "item": [
+        {
+          "name": "Create budget Dining/MONTHLY/10000 → 201, fresh usage OK",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('fresh usage: used 0, OK', () => {",
+                  "  pm.expect(Number(body.used)).to.eql(0);",
+                  "  pm.expect(body.status).to.eql('OK');",
+                  "  pm.expect(Number(body.remaining)).to.eql(10000);",
+                  "});",
+                  "if (body.budgetId) pm.collectionVariables.set('budgetId', body.budgetId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/budgets", "host": ["{{baseUrl}}"], "path": ["api", "v1", "budgets"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"{{diningCategoryId}}\",\n  \"amountLimit\": 10000.00,\n  \"periodType\": \"MONTHLY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Duplicate Dining/MONTHLY → 409",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/budgets", "host": ["{{baseUrl}}"], "path": ["api", "v1", "budgets"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"{{diningCategoryId}}\",\n  \"amountLimit\": 5000,\n  \"periodType\": \"MONTHLY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Budget on INCOME category → 400",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/budgets", "host": ["{{baseUrl}}"], "path": ["api", "v1", "budgets"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"{{incomeCategoryId}}\",\n  \"amountLimit\": 5000,\n  \"periodType\": \"MONTHLY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Create WEEKLY budget for Dining → 201 (different period is allowed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "if (body.budgetId) pm.collectionVariables.set('weeklyBudgetId', body.budgetId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/budgets", "host": ["{{baseUrl}}"], "path": ["api", "v1", "budgets"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"{{diningCategoryId}}\",\n  \"amountLimit\": 1500.00,\n  \"periodType\": \"WEEKLY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "PUT weekly → MONTHLY → 409 (monthly already exists)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/budgets/{{weeklyBudgetId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "budgets", "{{weeklyBudgetId}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"periodType\": \"MONTHLY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "DELETE weekly budget → 204",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/v1/budgets/{{weeklyBudgetId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "budgets", "{{weeklyBudgetId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 · Spend, then usage",
+      "item": [
+        {
+          "name": "INCOME 50000 salary → bank",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"INCOME\",\n  \"amount\": 50000.00,\n  \"toAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{incomeCategoryId}}\",\n  \"description\": \"Monthly salary\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "EXPENSE 4500 Dining from bank",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": 4500.00,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"categoryId\": \"{{diningCategoryId}}\",\n  \"description\": \"Team dinner\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "EXPENSE 3500 Dining from CARD (card spend counts toward budget)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"EXPENSE\",\n  \"amount\": 3500.00,\n  \"fromAccountId\": \"{{cardAccountId}}\",\n  \"categoryId\": \"{{diningCategoryId}}\",\n  \"description\": \"Anniversary dinner\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "TRANSFER 2000 bank → cash (must NOT count anywhere)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/transactions", "host": ["{{baseUrl}}"], "path": ["api", "v1", "transactions"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionType\": \"TRANSFER\",\n  \"amount\": 2000.00,\n  \"fromAccountId\": \"{{bankAccountId}}\",\n  \"toAccountId\": \"{{cashAccountId}}\",\n  \"description\": \"Cash withdrawal\",\n  \"transactionDate\": \"{{today}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "GET /budgets → spent 8000, exactly 80% = WARNING boundary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('totals', () => {",
+                  "  pm.expect(Number(body.totals.totalBudget)).to.eql(10000);",
+                  "  pm.expect(Number(body.totals.totalSpent)).to.eql(8000);",
+                  "  pm.expect(Number(body.totals.totalRemaining)).to.eql(2000);",
+                  "});",
+                  "const dining = body.budgets.find(b => b.categoryName === 'Dining');",
+                  "pm.test('Dining at exactly 80% → WARNING', () => {",
+                  "  pm.expect(Number(dining.used)).to.eql(8000);",
+                  "  pm.expect(dining.percentageUsed).to.eql(80);",
+                  "  pm.expect(dining.status).to.eql('WARNING');",
+                  "  pm.expect(Number(dining.remaining)).to.eql(2000);",
+                  "});",
+                  "console.log('window:', JSON.stringify(dining.window));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/budgets?date={{today}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "budgets"],
+              "query": [{ "key": "date", "value": "{{today}}" }]
+            }
+          }
+        },
+        {
+          "name": "Drill-down /budgets/{id}/transactions → 2 rows",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('2 contributing transactions', () => pm.expect(Number(body.totalElements)).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/budgets/{{budgetId}}/transactions?date={{today}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "budgets", "{{budgetId}}", "transactions"],
+              "query": [{ "key": "date", "value": "{{today}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 · History",
+      "item": [
+        {
+          "name": "GET /budgets/{id}/history?periods=3 → 3 points, current = 8000",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('3 points', () => pm.expect(body.points.length).to.eql(3));",
+                  "pm.test('current period last, used 8000 WARNING', () => {",
+                  "  const current = body.points[body.points.length - 1];",
+                  "  pm.expect(Number(current.used)).to.eql(8000);",
+                  "  pm.expect(current.status).to.eql('WARNING');",
+                  "});",
+                  "console.log('history:', JSON.stringify(body.points.map(p => [p.window.startDate, Number(p.used)])));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/budgets/{{budgetId}}/history?periods=3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "budgets", "{{budgetId}}", "history"],
+              "query": [{ "key": "periods", "value": "3" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 · Dashboard (one call)",
+      "item": [
+        {
+          "name": "GET /dashboard?periodType=MONTH → all widgets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('totals: balance 70000, income 50000, expense 8000, net 42000', () => {",
+                  "  pm.expect(Number(body.totals.totalBalance)).to.eql(70000);",
+                  "  pm.expect(Number(body.totals.income)).to.eql(50000);",
+                  "  pm.expect(Number(body.totals.expense)).to.eql(8000);",
+                  "  pm.expect(Number(body.totals.netCashFlow)).to.eql(42000);",
+                  "});",
+                  "pm.test('expenseByCategory: Dining 8000 = 100%', () => {",
+                  "  const dining = body.expenseByCategory.find(s => s.name === 'Dining');",
+                  "  pm.expect(Number(dining.amount)).to.eql(8000);",
+                  "  pm.expect(dining.percentage).to.eql(100);",
+                  "});",
+                  "pm.test('budget widget at 80% WARNING', () => {",
+                  "  const dining = body.budgets.find(b => b.categoryName === 'Dining');",
+                  "  pm.expect(Number(dining.used)).to.eql(8000);",
+                  "  pm.expect(dining.status).to.eql('WARNING');",
+                  "});",
+                  "pm.test('3 account balances', () => pm.expect(body.accountBalances.length).to.eql(3));",
+                  "pm.test('card widget: outstanding 3500, available 96500, monthSpend 3500', () => {",
+                  "  const card = body.creditCards[0];",
+                  "  pm.expect(Number(card.outstanding)).to.eql(3500);",
+                  "  pm.expect(Number(card.availableCredit)).to.eql(96500);",
+                  "  pm.expect(Number(card.monthSpend)).to.eql(3500);",
+                  "});",
+                  "pm.test('loans zeros until P4', () => {",
+                  "  pm.expect(Number(body.loansSummary.totalReceivable)).to.eql(0);",
+                  "  pm.expect(Number(body.loansSummary.totalPayable)).to.eql(0);",
+                  "});",
+                  "pm.test('recent ≤ 10', () => pm.expect(body.recentTransactions.length).to.be.at.most(10));",
+                  "console.log('series points:', body.incomeExpenseSeries.length, '| period:', JSON.stringify(body.period));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard?periodType=MONTH",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "dashboard"],
+              "query": [{ "key": "periodType", "value": "MONTH" }]
+            }
+          }
+        },
+        {
+          "name": "GET /dashboard?periodType=WEEK → 7 daily buckets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('7 daily buckets', () => pm.expect(body.incomeExpenseSeries.length).to.eql(7));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard?periodType=WEEK",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "dashboard"],
+              "query": [{ "key": "periodType", "value": "WEEK" }]
+            }
+          }
+        },
+        {
+          "name": "GET /dashboard?periodType=YEAR → 12 monthly buckets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('12 monthly buckets', () => pm.expect(body.incomeExpenseSeries.length).to.eql(12));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard?periodType=YEAR",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "dashboard"],
+              "query": [{ "key": "periodType", "value": "YEAR" }]
+            }
+          }
+        },
+        {
+          "name": "GET /dashboard?periodType=DAY → 24 hourly buckets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('24 hourly buckets', () => pm.expect(body.incomeExpenseSeries.length).to.eql(24));",
+                  "pm.test('first bucket labelled 00:00', () => pm.expect(body.incomeExpenseSeries[0].bucket).to.eql('00:00'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard?periodType=DAY",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "dashboard"],
+              "query": [{ "key": "periodType", "value": "DAY" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
