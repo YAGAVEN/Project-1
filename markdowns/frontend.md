@@ -84,18 +84,49 @@ goal flows are created from their own pages, not this button.
 
 # 4. Login Page
 
-- Application logo/name.
-- Email + password inputs (Supabase Auth — sign-in only in v1; a sign-up toggle
-  was added on the same page later, 2026-09-04).
-- Login button, validation/error messages, optional remember-me.
+Rebuilt Groww-style on 2026-09-05 (split layout, brand green). Routes: `/login`
+(all pre-auth paths redirect here) and `/reset-password`.
+
+- **Layout** — form column left (logo, heading, form); decorative brand panel
+  right (Groww-green `#00b386`, mock dashboard cards), hidden below `lg`.
+- **Views** on one page: sign-in · sign-up (2026-09-04 toggle) · forgot-password
+  · "check your inbox" sent-state.
+- Brand green lives in `index.css` `@theme` (`--color-brand-*`); the primary
+  button, input focus ring, and sidebar active pill all share it. Groww-green
+  CTA + white text is ~2.7:1 contrast — kept on the large CTA for brand
+  fidelity; small green text uses `brand-700` (AA-passing).
+- UX rules: inline field validation before network calls, show/hide password,
+  visible labels + `autoComplete`, spinner/disabled while submitting,
+  plain-language mapping of Supabase errors (`lib/authErrors.ts`).
+
+### Forgot-password flow (Supabase Auth only — no backend change)
+
+```text
+/reset-password?code=…  →  supabase-js exchanges the code (PKCE)  →  recovery session
+```
+
+1. Forgot view → `resetPasswordForEmail(email, { redirectTo: <origin>/reset-password })`.
+   Supabase returns 200 even for unknown emails, so no account-existence leak.
+2. Email link lands on `/reset-password` — this route is matched BEFORE the
+   session gate in `App.tsx`, because the recovery exchange creates a session.
+   Recovery is detected by pathname, NOT the `PASSWORD_RECOVERY` event (with
+   PKCE it fires unreliably; often only `SIGNED_IN`).
+3. ResetPasswordPage phases: verifying → form (new + confirm password) →
+   `updateUser({ password })` → done → dashboard. Expired/used links get a
+   "request a new link" path back to `/login` (state `{ view: 'forgot' }`).
+4. **Supabase dashboard prerequisite:** Auth → URL Configuration → Redirect
+   URLs must include `http://localhost:5173/reset-password` (and the prod URL).
 
 ### Auth contract
 
 ```text
-Login        → supabase.auth.signInWithPassword({ email, password })
-Token        → access_token kept by the client, refreshed by supabase-js
-API calls    → Authorization: Bearer <access_token> on every request
-After login  → Dashboard
+Login          → supabase.auth.signInWithPassword({ email, password })
+Sign-up        → supabase.auth.signUp({ email, password })
+Forgot         → supabase.auth.resetPasswordForEmail(email, { redirectTo })
+Set password   → supabase.auth.updateUser({ password })   (on recovery session)
+Token          → access_token kept by the client, refreshed by supabase-js
+API calls      → Authorization: Bearer <access_token> on every request
+After login    → Dashboard
 ```
 
 The frontend never talks to the database directly — only to Supabase Auth and

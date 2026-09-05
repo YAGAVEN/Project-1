@@ -1,0 +1,12 @@
+# Production overlay — activate with SPRING_PROFILES_ACTIVE=prod (see DEPLOYMENT.md).
+# Secrets stay in env vars via application.yml; this only turns off dev conveniences.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+    org.springframework.security: warn

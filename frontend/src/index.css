@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+/*
+ * Brand tokens — Groww-style green (frontend.md §4, 2026-09-05).
+ * brand-500 is Groww's signature #00b386: used for the primary CTA and decor.
+ * brand-700 (~4.9:1 on white) is used wherever green text must pass WCAG AA
+ * (links, sidebar active pill) — white on brand-500 itself is ~2.7:1, a
+ * known Groww fidelity trade-off kept only on the large CTA.
+ */
+@theme {
+  --color-brand-50: #e9f7f1;
+  --color-brand-100: #cdeadd;
+  --color-brand-200: #9bdcc0;
+  --color-brand-400: #0ec893;
+  --color-brand-500: #00b386;
+  --color-brand-600: #009e74;
+  --color-brand-700: #007a5a;
+  --color-brand-800: #005c43;
+}
