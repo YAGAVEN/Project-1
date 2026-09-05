@@ -60,3 +60,5 @@ management:
 logging:
   level:
     org.hibernate.SQL: info
+server:
+  port: ${PORT:8080}
