@@ -7,6 +7,11 @@ spring:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      # Supabase free tier caps pooler CLIENTS at 15 for the whole project.
+      # Local (5) + Render (DB_POOL_MAX=8) must stay under 15 together.
+      maximum-pool-size: ${DB_POOL_MAX:5}
+      minimum-idle: 2
 
   jpa:
     # Schema is owned by Flyway — Hibernate must never create or alter it.
