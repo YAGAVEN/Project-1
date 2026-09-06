@@ -12,6 +12,8 @@ import {
   useUpdateGoal,
 } from '../lib/queries'
 import { formatBucket, formatDateLabel, formatINR, todayISO } from '../lib/format'
+import { chartTheme } from '../lib/chartTheme'
+import { useTheme } from '../theme/ThemeContext'
 import {
   Badge,
   Card,
@@ -40,6 +42,8 @@ export function GoalDetailPage() {
   const deleteGoal = useDeleteGoal(id ?? '')
   const createTransaction = useCreateTransaction()
   const { data: accounts = [] } = useAccounts()
+  const { theme } = useTheme()
+  const ct = chartTheme(theme === 'dark')
 
   const [contributeOpen, setContributeOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -67,7 +71,7 @@ export function GoalDetailPage() {
         </div>
       </PageHeader>
       {confirmDelete && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
           Goals with contributions are cancelled (history kept), not deleted.
         </p>
       )}
@@ -80,7 +84,7 @@ export function GoalDetailPage() {
 
       <Card className="space-y-2">
         <ProgressBar percentage={goal.percentage} />
-        <div className="text-xs text-slate-500">{goal.contributions.length} contributions</div>
+        <div className="text-xs text-slate-500 dark:text-slate-400">{goal.contributions.length} contributions</div>
       </Card>
 
       <Card>
@@ -91,11 +95,11 @@ export function GoalDetailPage() {
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={goal.progressSeries} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="date" tickFormatter={formatBucket} tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                <YAxis tickFormatter={(value: number) => formatINR(value)} tick={{ fontSize: 11 }} stroke="#94a3b8" width={70} />
-                <Tooltip formatter={(value) => formatINR(Number(value))} contentStyle={{ borderRadius: 12, fontSize: 12 }} />
-                <Line type="monotone" dataKey="progress" stroke="#00b386" strokeWidth={2} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+                <XAxis dataKey="date" tickFormatter={formatBucket} tick={{ fontSize: 11, fill: ct.tickFill }} stroke={ct.axis} />
+                <YAxis tickFormatter={(value: number) => formatINR(value)} tick={{ fontSize: 11, fill: ct.tickFill }} stroke={ct.axis} width={70} />
+                <Tooltip formatter={(value) => formatINR(Number(value))} contentStyle={ct.tooltip.contentStyle} itemStyle={ct.tooltip.itemStyle} labelStyle={ct.tooltip.labelStyle} />
+                <Line type="monotone" dataKey="progress" stroke={ct.brand} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -109,20 +113,20 @@ export function GoalDetailPage() {
         {goal.contributions.length === 0 ? (
           <EmptyState>Nothing contributed yet.</EmptyState>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {goal.contributions.map((contribution) => (
               <li key={contribution.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="font-medium tabular-nums text-emerald-600">+{formatINR(contribution.amount)}</span>
+                  <span className="font-medium tabular-nums text-income">+{formatINR(contribution.amount)}</span>
                   {contribution.transactionId && <Badge tone="blue">linked transfer</Badge>}
-                  {contribution.notes && <span className="truncate text-slate-500">{contribution.notes}</span>}
+                  {contribution.notes && <span className="truncate text-slate-500 dark:text-slate-400">{contribution.notes}</span>}
                 </span>
                 <span className="flex shrink-0 items-center gap-3">
-                  <span className="text-xs text-slate-400">{formatDateLabel(contribution.contributionDate)}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{formatDateLabel(contribution.contributionDate)}</span>
                   <button
                     type="button"
                     onClick={() => void deleteContribution.mutateAsync(contribution.id)}
-                    className="text-xs text-rose-500 hover:underline"
+                    className="text-xs text-rose-500 hover:underline dark:text-rose-400"
                   >
                     remove
                   </button>
@@ -228,16 +232,16 @@ function ContributeModal({
           <input maxLength={500} value={notes} onChange={(event) => setNotes(event.target.value)} className={inputClass} placeholder="Optional" />
         </Field>
 
-        <label className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+        <label className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
           <input
             type="checkbox"
             checked={moneyMoved}
             onChange={(event) => setMoneyMoved(event.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-emerald-600"
+            className="mt-0.5 h-4 w-4 accent-emerald-600 dark:accent-income"
           />
           <span>
             <span className="font-medium">Money actually moved?</span>
-            <span className="block text-xs text-slate-500">
+            <span className="block text-xs text-slate-500 dark:text-slate-400">
               Checked: also records a TRANSFER between accounts. Unchecked: pure allocation — no account changes.
             </span>
           </span>
@@ -264,7 +268,7 @@ function ContributeModal({
           </div>
         )}
 
-        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className={secondaryButtonClass}>Cancel</button>
           <button type="submit" disabled={saving} className={primaryButtonClass}>{saving ? 'Saving…' : 'Add contribution'}</button>
@@ -328,7 +332,7 @@ function EditGoalModal({
             <option value="CANCELLED">Cancelled</option>
           </select>
         </Field>
-        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className={secondaryButtonClass}>Cancel</button>
           <button type="submit" disabled={saving} className={primaryButtonClass}>{saving ? 'Saving…' : 'Save'}</button>

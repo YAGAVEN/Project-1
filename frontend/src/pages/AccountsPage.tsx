@@ -40,11 +40,11 @@ export function AccountsPage() {
       </PageHeader>
 
       <Card>
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total Net Position</div>
-        <div className={cx('mt-1 text-3xl font-semibold tabular-nums', netPosition < 0 ? 'text-rose-600' : 'text-slate-900')}>
+        <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Total Net Position</div>
+        <div className={cx('mt-1 text-3xl font-semibold tabular-nums', netPosition < 0 ? 'text-expense' : 'text-slate-900 dark:text-slate-100')}>
           {formatINR(netPosition)}
         </div>
-        <p className="mt-1 text-xs text-slate-500">Credit cards count negative — that's money you owe.</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Credit cards count negative — that's money you owe.</p>
       </Card>
 
       {isLoading ? (
@@ -55,15 +55,15 @@ export function AccountsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.map((account) => (
             <Link key={account.id} to={`/accounts/${account.id}`} className="block">
-              <Card className="transition-colors hover:border-slate-300 hover:shadow-md">
+              <Card className="transition-colors hover:border-slate-300 hover:shadow-md dark:hover:border-slate-600">
                 <div className="flex items-center justify-between">
-                  <span className="truncate text-sm font-medium text-slate-800">{account.name}</span>
+                  <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{account.name}</span>
                   <Badge tone={account.accountType === 'CREDIT_CARD' ? 'red' : 'blue'}>{TYPE_LABELS[account.accountType]}</Badge>
                 </div>
-                <div className={cx('mt-3 text-2xl font-semibold tabular-nums', account.balance < 0 ? 'text-rose-600' : 'text-slate-900')}>
+                <div className={cx('mt-3 text-2xl font-semibold tabular-nums', account.balance < 0 ? 'text-expense' : 'text-slate-900 dark:text-slate-100')}>
                   {formatINR(account.balance)}
                 </div>
-                <div className="mt-1 text-xs text-slate-500">
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {account.accountType === 'CREDIT_CARD' && account.creditLimit !== null
                     ? `${formatINR(account.creditLimit - Math.max(0, -account.balance))} credit available`
                     : `Opened with ${formatINR(account.openingBalance)}`}
@@ -200,7 +200,7 @@ export function AccountModal({
           </>
         )}
 
-        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className={secondaryButtonClass}>Cancel</button>

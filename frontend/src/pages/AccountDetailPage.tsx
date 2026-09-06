@@ -10,6 +10,8 @@ import {
   YAxis,
 } from 'recharts'
 import { PeriodSelector } from '../components/PeriodSelector'
+import { useTheme } from '../theme/ThemeContext'
+import { chartTheme } from '../lib/chartTheme'
 import {
   Badge,
   Card,
@@ -35,6 +37,8 @@ export function AccountDetailPage() {
   const deleteAccount = useDeleteAccount(id ?? '')
   const [editOpen, setEditOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const { theme } = useTheme()
+  const ct = chartTheme(theme === 'dark')
 
   if (isLoading || !account) return <Spinner label="Loading account…" />
 
@@ -68,7 +72,7 @@ export function AccountDetailPage() {
         </div>
       </PageHeader>
       {confirmDelete && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
           Accounts with history are deactivated (kept for the ledger), not deleted.
         </p>
       )}
@@ -107,15 +111,17 @@ export function AccountDetailPage() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={account.balanceTrend} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="bucket" tickFormatter={formatBucket} tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                <YAxis tickFormatter={(value: number) => formatINRCompact(value)} tick={{ fontSize: 11 }} stroke="#94a3b8" width={70} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+                <XAxis dataKey="bucket" tickFormatter={formatBucket} tick={{ fontSize: 11, fill: ct.tickFill }} stroke={ct.axis} />
+                <YAxis tickFormatter={(value: number) => formatINRCompact(value)} tick={{ fontSize: 11, fill: ct.tickFill }} stroke={ct.axis} width={70} />
                 <Tooltip
                   formatter={(value) => formatINR(Number(value))}
                   labelFormatter={(label) => formatBucket(String(label))}
-                  contentStyle={{ borderRadius: 12, borderColor: '#e2e8f0', fontSize: 12 }}
+                  contentStyle={ct.tooltip.contentStyle}
+                  itemStyle={ct.tooltip.itemStyle}
+                  labelStyle={ct.tooltip.labelStyle}
                 />
-                <Line type="monotone" dataKey="closingBalance" stroke="#00b386" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="closingBalance" stroke={ct.brand} strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -127,17 +133,17 @@ export function AccountDetailPage() {
         {account.recentTransactions.length === 0 ? (
           <EmptyState>No transactions on this account yet.</EmptyState>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {account.recentTransactions.map((txn) => (
               <li key={txn.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-medium text-slate-800">{txn.description ?? txn.categoryName ?? 'Transaction'}</span>
+                  <span className="truncate font-medium text-slate-800 dark:text-slate-100">{txn.description ?? txn.categoryName ?? 'Transaction'}</span>
                   <TypeBadge transactionType={txn.transactionType as never} />
                 </span>
-                <span className="flex shrink-0 items-center gap-3 text-slate-500">
+                <span className="flex shrink-0 items-center gap-3 text-slate-500 dark:text-slate-400">
                   {txn.counterAccountName && <span className="hidden text-xs sm:inline">{txn.counterAccountName}</span>}
                   <span className="text-xs">{txn.transactionDate}</span>
-                  <span className="w-24 text-right font-medium tabular-nums text-slate-900">{formatINR(txn.amount)}</span>
+                  <span className="w-24 text-right font-medium tabular-nums text-slate-900 dark:text-slate-100">{formatINR(txn.amount)}</span>
                 </span>
               </li>
             ))}

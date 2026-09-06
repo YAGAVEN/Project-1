@@ -9,6 +9,8 @@ import {
   useUpdateBudget,
 } from '../lib/queries'
 import { formatBucket, formatDateLabel, formatINR, formatINRCompact, todayISO } from '../lib/format'
+import { useTheme } from '../theme/ThemeContext'
+import { chartTheme } from '../lib/chartTheme'
 import {
   Badge,
   Card,
@@ -35,6 +37,8 @@ export function BudgetDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [amountLimit, setAmountLimit] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const { theme } = useTheme()
+  const ct = chartTheme(theme === 'dark')
 
   if (isLoading || !history) return <Spinner label="Loading budget…" />
 
@@ -94,20 +98,22 @@ export function BudgetDetailPage() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={history.points} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
                 <XAxis
                   dataKey="window"
                   tickFormatter={(window: { startDate: string }) => formatBucket(window.startDate)}
-                  tick={{ fontSize: 11 }}
-                  stroke="#94a3b8"
+                  tick={{ fontSize: 11, fill: ct.tickFill }}
+                  stroke={ct.axis}
                 />
-                <YAxis tickFormatter={(value: number) => formatINRCompact(value)} tick={{ fontSize: 11 }} stroke="#94a3b8" width={70} />
+                <YAxis tickFormatter={(value: number) => formatINRCompact(value)} tick={{ fontSize: 11, fill: ct.tickFill }} stroke={ct.axis} width={70} />
                 <Tooltip
                   formatter={(value) => formatINR(Number(value))}
                   labelFormatter={(label) => formatBucket(String(label))}
-                  contentStyle={{ borderRadius: 12, borderColor: '#e2e8f0', fontSize: 12 }}
+                  contentStyle={ct.tooltip.contentStyle}
+                  itemStyle={ct.tooltip.itemStyle}
+                  labelStyle={ct.tooltip.labelStyle}
                 />
-                <Bar dataKey="used" fill="#00b386" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="used" fill={ct.brand} radius={[4, 4, 0, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -119,16 +125,16 @@ export function BudgetDetailPage() {
         {!ledger || ledger.content.length === 0 ? (
           <EmptyState>Nothing spent against this budget in the current period.</EmptyState>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {ledger.content.map((txn) => (
               <li key={txn.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-medium text-slate-800">{txn.description ?? txn.categoryName}</span>
-                  <span className="text-xs text-slate-400">{txn.fromAccountName}</span>
+                  <span className="truncate font-medium text-slate-800 dark:text-slate-100">{txn.description ?? txn.categoryName}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{txn.fromAccountName}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-3">
-                  <span className="text-xs text-slate-400">{formatDateLabel(txn.transactionDate)}</span>
-                  <span className="w-24 text-right font-medium tabular-nums text-slate-900">{formatINR(txn.amount)}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{formatDateLabel(txn.transactionDate)}</span>
+                  <span className="w-24 text-right font-medium tabular-nums text-slate-900 dark:text-slate-100">{formatINR(txn.amount)}</span>
                 </span>
               </li>
             ))}
@@ -141,7 +147,7 @@ export function BudgetDetailPage() {
           <Field label={`Limit (₹) — ${history.periodType.toLowerCase()}`}>
             <input required type="number" min="0.01" step="0.01" value={amountLimit} onChange={(event) => setAmountLimit(event.target.value)} className={cxInput} />
           </Field>
-          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setEditOpen(false)} className={secondaryButtonClass}>Cancel</button>
             <button type="submit" disabled={updateBudget.isPending} className={primaryButtonClass}>

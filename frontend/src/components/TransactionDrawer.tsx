@@ -189,7 +189,7 @@ function TransactionDrawer({
       ) : (
         <form onSubmit={submit} className="space-y-4">
           {mode === 'create' && (
-            <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+            <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
               {CREATE_TYPES.map((type) => (
                 <button
                   key={type}
@@ -197,7 +197,9 @@ function TransactionDrawer({
                   onClick={() => setForm({ ...emptyForm(type) })}
                   className={cx(
                     'rounded-lg px-3 py-2 text-sm font-medium capitalize',
-                    form.transactionType === type ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500',
+                    form.transactionType === type
+                      ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
+                      : 'text-slate-500 dark:text-slate-400',
                   )}
                 >
                   {type.toLowerCase()}
@@ -207,7 +209,7 @@ function TransactionDrawer({
           )}
 
           {mode === 'edit' && (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
+            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
               <TypeBadge transactionType={form.transactionType} />
               <span>type is immutable</span>
             </div>
@@ -295,7 +297,7 @@ function TransactionDrawer({
             )}
           </div>
 
-          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
 
           <div className="flex items-center justify-between gap-2 pt-2">
             {mode === 'edit' ? (
@@ -326,18 +328,18 @@ function TransactionDrawer({
 
 function LoanTxnView({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
   return (
-    <div className="space-y-4 text-sm text-slate-700">
+    <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
       <div className="flex items-center gap-2">
         <TypeBadge transactionType={transaction.transactionType} />
         {transaction.categoryName && <Badge>{transaction.categoryName}</Badge>}
       </div>
-      <div className="text-2xl font-semibold tabular-nums text-slate-900">₹{transaction.amount.toLocaleString('en-IN')}</div>
-      <dl className="space-y-1 text-slate-500">
+      <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100">₹{transaction.amount.toLocaleString('en-IN')}</div>
+      <dl className="space-y-1 text-slate-500 dark:text-slate-400">
         <div>Account: {transaction.fromAccountName ?? transaction.toAccountName}</div>
         <div>Date: {transaction.transactionDate}</div>
         {transaction.description && <div>{transaction.description}</div>}
       </dl>
-      <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+      <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
         Loan movements are read-only here — manage them from the Loans page.
       </p>
       <div className="flex justify-end gap-2">

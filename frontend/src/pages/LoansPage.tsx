@@ -45,7 +45,7 @@ export function LoansPage() {
       </div>
 
       {/* §17 tabs */}
-      <div className="flex w-fit rounded-xl bg-slate-100 p-1">
+      <div className="flex w-fit rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
         {(['LENT', 'BORROWED'] as LoanType[]).map((direction) => (
           <button
             key={direction}
@@ -53,7 +53,9 @@ export function LoansPage() {
             onClick={() => setTab(direction)}
             className={cx(
               'rounded-lg px-4 py-2 text-sm font-medium',
-              tab === direction ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500',
+              tab === direction
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
+                : 'text-slate-500 dark:text-slate-400',
             )}
           >
             {direction === 'LENT' ? 'Money I Lent' : 'Money I Borrowed'}
@@ -75,19 +77,19 @@ export function LoansPage() {
             const settled = (paidBack / loan.originalAmount) * 100
             return (
               <Link key={loan.id} to={`/loans/${loan.id}`} className="block">
-                <Card className="space-y-2 transition-colors hover:border-slate-300 hover:shadow-md">
+                <Card className="space-y-2 transition-colors hover:border-slate-300 hover:shadow-md dark:hover:border-slate-600">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-900">{loan.contactName}</span>
+                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{loan.contactName}</span>
                     <Badge tone={loan.status === 'PAID' ? 'green' : 'blue'}>{loan.status === 'PAID' ? 'All settled' : 'Active'}</Badge>
                   </div>
                   <ProgressBar percentage={settled} />
-                  <div className="flex items-center justify-between text-xs tabular-nums text-slate-500">
+                  <div className="flex items-center justify-between text-xs tabular-nums text-slate-500 dark:text-slate-400">
                     <span>
                       {isLent
                         ? `${formatINR(paidBack)} of ${formatINR(loan.originalAmount)} paid back to you`
                         : `You've paid back ${formatINR(paidBack)} of ${formatINR(loan.originalAmount)}`}
                     </span>
-                    <span className={cx('font-medium', loan.outstanding > 0 ? 'text-slate-700' : 'text-emerald-600')}>
+                    <span className={cx('font-medium', loan.outstanding > 0 ? 'text-slate-700 dark:text-slate-300' : 'text-income')}>
                       {loan.outstanding === 0
                         ? 'Nothing left'
                         : isLent
@@ -158,7 +160,7 @@ function RecordLoanModal({ open, onClose }: { open: boolean; onClose: () => void
   return (
     <Modal open={open} onClose={onClose} title="Record Loan" wide>
       <form onSubmit={submit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
           {(['LENT', 'BORROWED'] as LoanType[]).map((direction) => (
             <button
               key={direction}
@@ -166,7 +168,9 @@ function RecordLoanModal({ open, onClose }: { open: boolean; onClose: () => void
               onClick={() => setLoanType(direction)}
               className={cx(
                 'rounded-lg px-3 py-2 text-sm font-medium',
-                loanType === direction ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500',
+                loanType === direction
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
+                  : 'text-slate-500 dark:text-slate-400',
               )}
             >
               {direction === 'LENT' ? 'I gave money' : 'I received money'}
@@ -216,10 +220,10 @@ function RecordLoanModal({ open, onClose }: { open: boolean; onClose: () => void
           <input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} className={inputClass} placeholder="Optional" />
         </Field>
 
-        <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">
+        <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:bg-sky-500/10 dark:text-sky-300">
           Creating the loan records the matching money movement automatically — don't also log it as an expense or income.
         </p>
-        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className={secondaryButtonClass}>Cancel</button>

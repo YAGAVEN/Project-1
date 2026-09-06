@@ -96,7 +96,7 @@ export function TransactionsPage() {
         />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">Type</span>
+            <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Type</span>
             <select value={type} onChange={(event) => { setType(event.target.value); setPage(0) }} className={inputClass}>
               <option value="">All</option>
               <option value="INCOME">Income</option>
@@ -105,7 +105,7 @@ export function TransactionsPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">Category</span>
+            <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Category</span>
             <select value={categoryId} onChange={(event) => { setCategoryId(event.target.value); setPage(0) }} className={inputClass}>
               <option value="">All</option>
               {categories.map((category) => (
@@ -114,7 +114,7 @@ export function TransactionsPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">Account</span>
+            <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Account</span>
             <select value={accountId} onChange={(event) => { setAccountId(event.target.value); setPage(0) }} className={inputClass}>
               <option value="">All</option>
               {accounts.map((account) => (
@@ -123,11 +123,11 @@ export function TransactionsPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">From date</span>
+            <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">From date</span>
             <input type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPage(0) }} className={inputClass} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">To date</span>
+            <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">To date</span>
             <input type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(0) }} className={inputClass} />
           </label>
         </div>
@@ -144,16 +144,16 @@ export function TransactionsPage() {
             .sort((a, b) => b[0].localeCompare(a[0]))
             .map(([date, txns]) => (
             <div key={date}>
-              <div className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <div className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                 {formatDateLabel(date)}
               </div>
-              <Card className="divide-y divide-slate-100 p-0">
+              <Card className="divide-y divide-slate-100 p-0 dark:divide-slate-800">
                 {txns.map((txn) => <TransactionRow key={txn.id} txn={txn} />)}
               </Card>
             </div>
           ))}
 
-          <div className="flex items-center justify-between text-sm text-slate-500">
+          <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
             <span>{result.totalElements} transactions</span>
             <div className="flex items-center gap-2">
               <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)} className={cx(inputClass, 'w-auto px-3 disabled:opacity-40')}>
@@ -184,19 +184,19 @@ function TransactionRow({ txn }: { txn: Transaction }) {
     <button
       type="button"
       onClick={() => drawer.openEdit(txn)}
-      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-slate-50"
+      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
     >
       <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate font-medium text-slate-800">
+        <span className="truncate font-medium text-slate-800 dark:text-slate-100">
           {txn.description || txn.categoryName || accountLine || 'Transaction'}
         </span>
-        {txn.categoryName && txn.description && <span className="hidden truncate text-slate-400 sm:inline">{txn.categoryName}</span>}
+        {txn.categoryName && txn.description && <span className="hidden truncate text-slate-400 sm:inline dark:text-slate-500">{txn.categoryName}</span>}
         {loanType && <TypeBadge transactionType={txn.transactionType} />}
         {txn.transactionType === 'TRANSFER' && <Badge tone="blue">Transfer</Badge>}
       </span>
       <span className="flex shrink-0 items-center gap-3">
-        <span className="hidden text-xs text-slate-400 md:inline">{accountLine}</span>
-        <span className={cx('w-28 text-right font-medium tabular-nums', credit ? 'text-emerald-600' : 'text-slate-900')}>
+        <span className="hidden text-xs text-slate-400 md:inline dark:text-slate-500">{accountLine}</span>
+        <span className={cx('w-28 text-right font-medium tabular-nums', credit ? 'text-income' : 'text-slate-900 dark:text-slate-100')}>
           {credit ? '+' : txn.transactionType === 'EXPENSE' ? '−' : ''}
           {formatINR(txn.amount)}
         </span>

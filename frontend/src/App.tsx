@@ -26,7 +26,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ de
 
 function RouteFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center text-sm text-slate-500" role="status" aria-live="polite">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-400" role="status" aria-live="polite">
       Loading…
     </div>
   )

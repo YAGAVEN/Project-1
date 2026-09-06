@@ -8,6 +8,22 @@
     <meta name="description" content="Personal finance tracker — accounts, budgets, loans, goals and analytics in one place." />
     <meta name="robots" content="noindex" />
     <title>Finance Tracker</title>
+    <script>
+      // Apply the theme before first paint to avoid a light flash (key is
+      // mirrored in src/theme/ThemeContext.tsx — keep the two in sync).
+      ;(function () {
+        try {
+          var saved = localStorage.getItem('ft-theme')
+          var dark = saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', dark ? '#020617' : '#00b386')
+        } catch (e) {
+          /* storage blocked — light default */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

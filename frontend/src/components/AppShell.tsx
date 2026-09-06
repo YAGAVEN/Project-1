@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { TransactionDrawerProvider, useTransactionDrawer } from './TransactionDrawer'
 import { BrandLogo } from './BrandLogo'
+import { ThemeToggle } from './ThemeToggle'
 import { cx, primaryButtonClass } from './ui'
 
 /** Persistent left sidebar per frontend.md §3. */
@@ -21,8 +22,8 @@ export function AppShell() {
 
   return (
     <TransactionDrawerProvider>
-      <div className="flex h-screen bg-slate-50">
-        <aside className="flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
+        <aside className="flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <div className="px-5 py-5">
             <BrandLogo />
           </div>
@@ -36,8 +37,8 @@ export function AppShell() {
                   cx(
                     'block rounded-lg px-3 py-2 text-sm transition-colors',
                     isActive
-                      ? 'bg-brand-50 font-medium text-brand-700'
-                      : 'text-slate-700 hover:bg-slate-100',
+                      ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400'
+                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
                   )
                 }
               >
@@ -46,13 +47,16 @@ export function AppShell() {
             ))}
           </nav>
 
-          <div className="space-y-2 border-t border-slate-200 px-3 py-4">
+          <div className="space-y-2 border-t border-slate-200 px-3 py-4 dark:border-slate-800">
             <AddTransactionButton />
-            <div className="truncate px-3 pt-1 text-xs text-slate-500">{session?.user.email}</div>
+            <div className="flex items-center justify-between gap-2 px-3 pt-1">
+              <div className="truncate text-xs text-slate-500 dark:text-slate-400">{session?.user.email}</div>
+              <ThemeToggle className="shrink-0" />
+            </div>
             <button
               type="button"
               onClick={() => void signOut()}
-              className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100"
+              className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
             >
               Logout
             </button>

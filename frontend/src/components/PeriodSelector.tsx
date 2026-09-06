@@ -15,7 +15,7 @@ export function PeriodSelector({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
+      <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900">
         {TYPES.map((type) => (
           <button
             key={type}
@@ -23,7 +23,9 @@ export function PeriodSelector({
             onClick={() => onChange({ periodType: type, date: value.date })}
             className={cx(
               'rounded-md px-3 py-1.5 text-xs font-medium capitalize',
-              value.periodType === type ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100',
+              value.periodType === type
+                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800',
             )}
           >
             {type}
@@ -31,23 +33,23 @@ export function PeriodSelector({
         ))}
       </div>
 
-      <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-1 py-0.5">
+      <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-1 py-0.5 dark:border-slate-800 dark:bg-slate-900">
         <button
           type="button"
           aria-label="Previous period"
           onClick={() => onChange({ ...value, date: shiftAnchor(value.periodType, value.date, -1) })}
-          className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100"
+          className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
         >
           ‹
         </button>
-        <span className="min-w-36 px-2 text-center text-sm font-medium text-slate-700 tabular-nums">
+        <span className="min-w-36 px-2 text-center text-sm font-medium text-slate-700 tabular-nums dark:text-slate-300">
           {formatAnchor(value.periodType, value.date)}
         </span>
         <button
           type="button"
           aria-label="Next period"
           onClick={() => onChange({ ...value, date: shiftAnchor(value.periodType, value.date, 1) })}
-          className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100"
+          className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
         >
           ›
         </button>
@@ -56,7 +58,7 @@ export function PeriodSelector({
       <button
         type="button"
         onClick={() => onChange({ ...value, date: todayISO() })}
-        className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-800"
+        className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
       >
         Today
       </button>

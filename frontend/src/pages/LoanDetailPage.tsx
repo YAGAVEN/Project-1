@@ -57,7 +57,7 @@ export function LoanDetailPage() {
           )}
         </div>
       </PageHeader>
-      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -116,7 +116,7 @@ export function LoanDetailPage() {
                 <button
                   type="button"
                   onClick={() => void deletePayment.mutateAsync(payment.id)}
-                  className="text-xs text-rose-500 hover:underline"
+                  className="text-xs text-rose-500 hover:underline dark:text-rose-400"
                 >
                   remove
                 </button>
@@ -133,8 +133,8 @@ export function LoanDetailPage() {
 
       {loan.accountName && (
         <Card>
-          <p className="text-xs text-slate-500">
-            The origin movement and every repayment are real transactions on <span className="font-medium text-slate-700">{loan.accountName}</span>.
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            The origin movement and every repayment are real transactions on <span className="font-medium text-slate-700 dark:text-slate-300">{loan.accountName}</span>.
           </p>
         </Card>
       )}
@@ -169,17 +169,17 @@ function TimelineRow({
   return (
     <div className="flex items-center gap-3">
       <div className="flex flex-col items-center">
-        <span className={first ? 'h-2.5 w-2.5 rounded-full bg-slate-900' : 'h-2.5 w-2.5 rounded-full bg-emerald-500'} />
-        {!last && <span className="h-6 w-px bg-slate-200" />}
+        <span className={first ? 'h-2.5 w-2.5 rounded-full bg-slate-900 dark:bg-slate-100' : 'h-2.5 w-2.5 rounded-full bg-income'} />
+        {!last && <span className="h-6 w-px bg-slate-200 dark:bg-slate-700" />}
       </div>
       <div className="flex flex-1 items-center justify-between gap-3 text-sm">
         <span className="flex items-center gap-2">
-          <span className={first || last ? 'font-semibold text-slate-900' : 'text-slate-700'}>{label}</span>
-          {sub && <span className="text-xs text-slate-400">{sub}</span>}
+          <span className={first || last ? 'font-semibold text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-300'}>{label}</span>
+          {sub && <span className="text-xs text-slate-400 dark:text-slate-500">{sub}</span>}
         </span>
         <span className="flex items-center gap-3">
           {action}
-          <span className="font-medium tabular-nums text-slate-900">{amount}</span>
+          <span className="font-medium tabular-nums text-slate-900 dark:text-slate-100">{amount}</span>
         </span>
       </div>
     </div>
@@ -239,7 +239,7 @@ function PaymentModal({
             ))}
           </select>
         </Field>
-        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className={secondaryButtonClass}>Cancel</button>
           <button type="submit" disabled={saving} className={primaryButtonClass}>{saving ? 'Saving…' : 'Record payment'}</button>

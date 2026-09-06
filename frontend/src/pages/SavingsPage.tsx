@@ -55,15 +55,15 @@ export function SavingsPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {goals.map((goal) => (
             <Link key={goal.id} to={`/savings/${goal.id}`} className="block">
-              <Card className="space-y-2 transition-colors hover:border-slate-300 hover:shadow-md">
+              <Card className="space-y-2 transition-colors hover:border-slate-300 hover:shadow-md dark:hover:border-slate-600">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-900">{goal.name}</span>
+                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{goal.name}</span>
                   <Badge tone={goal.status === 'COMPLETED' ? 'green' : goal.status === 'CANCELLED' ? 'gray' : 'blue'}>
                     {goal.status}
                   </Badge>
                 </div>
                 <ProgressBar percentage={goal.percentage} />
-                <div className="flex items-center justify-between text-xs tabular-nums text-slate-500">
+                <div className="flex items-center justify-between text-xs tabular-nums text-slate-500 dark:text-slate-400">
                   <span>{formatINR(goal.progress)} of {formatINR(goal.targetAmount)} · {goal.percentage}%</span>
                   {goal.targetDate && <span>by {goal.targetDate}</span>}
                 </div>
@@ -130,7 +130,7 @@ function NewGoalModal({
         <Field label="Description">
           <input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} className={inputClass} placeholder="Optional" />
         </Field>
-        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className={secondaryButtonClass}>Cancel</button>
           <button type="submit" disabled={creating} className={primaryButtonClass}>{creating ? 'Creating…' : 'Create goal'}</button>
