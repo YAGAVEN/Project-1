@@ -24,10 +24,10 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     const { error } = this.state
     if (!error) return this.props.children
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-rose-50">
-            <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-rose-600" aria-hidden="true">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-rose-50 dark:bg-rose-500/10">
+            <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-rose-600 dark:text-rose-400" aria-hidden="true">
               <path
                 d="M12 8.5v5"
                 stroke="currentColor"
@@ -43,8 +43,8 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
               />
             </svg>
           </div>
-          <h1 className="mt-4 text-lg font-semibold text-slate-900">Something went wrong</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
+          <h1 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Something went wrong</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
             The app hit an unexpected error. Reloading usually fixes it — your data is safe on
             the server.
           </p>

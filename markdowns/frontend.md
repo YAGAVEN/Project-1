@@ -94,7 +94,8 @@ Rebuilt Groww-style on 2026-09-05 (split layout, brand green). Routes: `/login`
 - Brand green lives in `index.css` `@theme` (`--color-brand-*`); the primary
   button, input focus ring, and sidebar active pill all share it. Groww-green
   CTA + white text is ~2.7:1 contrast — kept on the large CTA for brand
-  fidelity; small green text uses `brand-700` (AA-passing).
+  fidelity; small green text uses `brand-700` (AA-passing). Theming rules for
+  this page (brand panel, sparkline, toggle) are in §25.
 - UX rules: inline field validation before network calls, show/hide password,
   visible labels + `autoComplete`, spinner/disabled while submitting,
   plain-language mapping of Supabase errors (`lib/authErrors.ts`).
@@ -851,3 +852,39 @@ Dashboard → Overview → Find Something Interesting
 
 The interface should feel like a **financial control center**, not a collection
 of disconnected pages.
+
+# 25. Theming — Light & Dark (2026-09-06)
+
+Groww-style dark mode, app-wide. Light mode is visually identical to the
+pre-theme design.
+
+- **Mechanism** — class-based dark variant in Tailwind v4: `@custom-variant
+  dark` in `index.css`; `.dark` is toggled on `<html>`.
+- **Persistence** — `theme/ThemeContext.tsx` stores the choice in
+  `localStorage` (`ft-theme`), defaults to the OS `prefers-color-scheme`, and
+  keeps following the OS until the user picks a side. `index.html` carries a
+  mirrored pre-paint script so a dark reload never flashes light — the key
+  name and logic must stay in sync with `ThemeContext`.
+- **Income/expense tokens** — `--income` / `--expense` CSS vars flip per mode
+  and are exposed via `@theme inline`, so call sites write `text-income` /
+  `text-expense` with no `dark:` prefix. Light: emerald-600 / rose-600. Dark:
+  neon green `#00e09e` (income) and rose-400 `#fb7185` (expense) — red was
+  kept for expense after a blue trial (2026-09-06) because red reads more
+  meaningfully. Danger (delete, validation errors) shares the red family, as
+  in light mode; transfer stays blue and loan amber in both modes.
+- **Surfaces** — slate scale: app `dark:bg-slate-950`, cards/panels
+  `dark:bg-slate-900`, hovers `dark:hover:bg-slate-800`, borders
+  `dark:border-slate-800`. Shared primitives (`components/ui.tsx`) own most of
+  it — pages add only local overrides.
+- **Special cases** — PeriodSelector's active pill inverts
+  (`dark:bg-slate-100 dark:text-slate-900`); LoanDetail's timeline start dot
+  likewise; GoalDetail's checkbox uses `dark:accent-income`; the login brand
+  panel goes deep-green (`dark:bg-brand-500/10`) with the sparkline reclassed
+  to `fill-/stroke-brand-*` utilities.
+- **Charts** — Recharts takes colors as JS props, so pages call
+  `chartTheme(isDark)` from `lib/chartTheme.ts` (grid, axes, tick fill, tooltip
+  panel, series, donut palette) via `useTheme()`. Never hardcode chart hexes.
+- **Toggles** — `components/ThemeToggle.tsx` (sun/moon icon button), mounted
+  in: sidebar footer (`AppShell`), login header, reset-password corner, and
+  Settings → Appearance. `meta[name=theme-color]` follows the mode.
+

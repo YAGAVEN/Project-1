@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { errorMessage, useCategories, useContacts, useCreateCategory, useCreateContact, useDeleteCategory, useDeleteContact, useMe, useUpdateCategory, useUpdateMe } from '../lib/queries'
 import type { Category, CategoryType, Contact } from '../lib/types'
+import { ThemeToggle } from '../components/ThemeToggle'
+import { useTheme } from '../theme/ThemeContext'
 import {
   Badge,
   Card,
@@ -19,10 +21,32 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" />
+      <AppearanceCard />
       <ProfileCard />
       <CategoriesCard />
       <ContactsCard />
     </div>
+  )
+}
+
+function AppearanceCard() {
+  const { theme } = useTheme()
+  return (
+    <Card>
+      <SectionTitle>Appearance</SectionTitle>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-100">Theme</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Follows your system setting until you pick a side.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs capitalize text-slate-500 dark:text-slate-400">{theme}</span>
+          <ThemeToggle />
+        </div>
+      </div>
+    </Card>
   )
 }
 
@@ -57,15 +81,15 @@ function ProfileCard() {
           </Field>
         </div>
         <div>
-          <span className="mb-1 block text-sm font-medium text-slate-700">Currency</span>
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Currency</span>
           <Badge tone="gray">INR only in v1</Badge>
         </div>
         <button type="submit" disabled={updateMe.isPending} className={primaryButtonClass}>
           {updateMe.isPending ? 'Saving…' : 'Save'}
         </button>
-        {saved && <span className="text-sm text-emerald-600">Saved ✓</span>}
+        {saved && <span className="text-sm text-income">Saved ✓</span>}
       </form>
-      <p className="mt-2 text-xs text-slate-400">user: {profile.id}</p>
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">user: {profile.id}</p>
     </Card>
   )
 }
@@ -110,9 +134,9 @@ function CategoriesCard() {
 
   function renderCategory(category: Category, child?: Category) {
     return (
-      <li key={(child ?? category).id} className={cx('flex items-center justify-between gap-2 py-2 text-sm', child && 'pl-6 text-slate-600')}>
+      <li key={(child ?? category).id} className={cx('flex items-center justify-between gap-2 py-2 text-sm', child && 'pl-6 text-slate-600 dark:text-slate-400')}>
         <span className="flex min-w-0 items-center gap-2">
-          {child ? <span className="text-slate-300">└</span> : <span className="font-medium text-slate-800">{category.name}</span>}
+          {child ? <span className="text-slate-300 dark:text-slate-600">└</span> : <span className="font-medium text-slate-800 dark:text-slate-100">{category.name}</span>}
           <span className="truncate">{child?.name}</span>
           {!(child ?? category).isActive && <Badge tone="gray">inactive</Badge>}
         </span>
@@ -123,14 +147,14 @@ function CategoriesCard() {
               setEditing(child ?? category)
               setEditName((child ?? category).name)
             }}
-            className="text-xs text-slate-500 hover:underline"
+            className="text-xs text-slate-500 hover:underline dark:text-slate-400"
           >
             rename
           </button>
           <button
             type="button"
             onClick={() => void deleteCategory.mutateAsync((child ?? category).id).then(refresh).catch((err) => alert(errorMessage(err)))}
-            className="text-xs text-rose-500 hover:underline"
+            className="text-xs text-rose-500 hover:underline dark:text-rose-400"
           >
             delete
           </button>
@@ -150,8 +174,8 @@ function CategoriesCard() {
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Income</div>
-            <ul className="divide-y divide-slate-100">{incomeRoots.map((root) => (
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Income</div>
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">{incomeRoots.map((root) => (
               <div key={root.id}>
                 {renderCategory(root)}
                 {categories.filter((child) => child.parentCategoryId === root.id).map((child) => renderCategory(root, child))}
@@ -159,8 +183,8 @@ function CategoriesCard() {
             ))}</ul>
           </div>
           <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Expense</div>
-            <ul className="divide-y divide-slate-100">{expenseRoots.map((root) => (
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Expense</div>
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">{expenseRoots.map((root) => (
               <div key={root.id}>
                 {renderCategory(root)}
                 {categories.filter((child) => child.parentCategoryId === root.id).map((child) => renderCategory(root, child))}
@@ -170,7 +194,7 @@ function CategoriesCard() {
         </div>
       )}
 
-      <form onSubmit={create} className="mt-5 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
+      <form onSubmit={create} className="mt-5 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
         <div className="w-48">
           <Field label="New category">
             <input required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} placeholder="Name" />
@@ -195,7 +219,7 @@ function CategoriesCard() {
           </Field>
         </div>
         <button type="submit" disabled={createCategory.isPending} className={primaryButtonClass}>Add</button>
-        {error && <p className="w-full rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+        {error && <p className="w-full rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">{error}</p>}
       </form>
 
       <Modal open={editing !== null} onClose={() => setEditing(null)} title="Rename category">
@@ -258,13 +282,13 @@ function ContactsCard() {
       {isLoading ? (
         <Spinner />
       ) : contacts.length === 0 ? (
-        <p className="text-sm text-slate-500">No contacts yet — add one when you record a loan.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">No contacts yet — add one when you record a loan.</p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           {contacts.map((contact) => (
             <li key={contact.id} className="flex items-center justify-between py-2 text-sm">
-              <span className="font-medium text-slate-800">{contact.name}</span>
-              <button type="button" onClick={() => void remove(contact)} className="text-xs text-rose-500 hover:underline">
+              <span className="font-medium text-slate-800 dark:text-slate-100">{contact.name}</span>
+              <button type="button" onClick={() => void remove(contact)} className="text-xs text-rose-500 hover:underline dark:text-rose-400">
                 delete
               </button>
             </li>
@@ -272,14 +296,14 @@ function ContactsCard() {
         </ul>
       )}
 
-      <form onSubmit={create} className="mt-4 flex items-end gap-3 border-t border-slate-100 pt-4">
+      <form onSubmit={create} className="mt-4 flex items-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
         <div className="w-56">
           <Field label="New contact">
             <input required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} placeholder="Name" />
           </Field>
         </div>
         <button type="submit" disabled={createContact.isPending} className={primaryButtonClass}>Add</button>
-        {error && <p className="text-sm text-rose-600">{error}</p>}
+        {error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
       </form>
     </Card>
   )

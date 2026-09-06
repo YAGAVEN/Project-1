@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { supabase } from '../lib/supabase'
 import { friendlyAuthError } from '../lib/authErrors'
 import { BrandLogo } from '../components/BrandLogo'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { cx, inputClass } from '../components/ui'
 
 /**
@@ -75,7 +76,10 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-slate-950">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-sm">
         <div className="flex justify-center">
           <BrandLogo size="lg" />
@@ -84,20 +88,20 @@ export function ResetPasswordPage() {
         {effectivePhase === 'verifying' && (
           <div className="mt-12 text-center" role="status" aria-live="polite">
             <span
-              className="mx-auto block h-8 w-8 animate-spin rounded-full border-[3px] border-brand-100 border-t-brand-500"
+              className="mx-auto block h-8 w-8 animate-spin rounded-full border-[3px] border-brand-100 border-t-brand-500 dark:border-brand-500/30 dark:border-t-brand-400"
               aria-hidden="true"
             />
-            <h1 className="mt-6 text-xl font-bold tracking-tight text-slate-900">
+            <h1 className="mt-6 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Verifying your reset link…
             </h1>
-            <p className="mt-2 text-sm text-slate-500">This only takes a moment.</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">This only takes a moment.</p>
           </div>
         )}
 
         {effectivePhase === 'invalid' && (
           <div className="mt-12">
-            <div className="grid h-12 w-12 place-items-center rounded-full bg-amber-50">
-              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-amber-600" aria-hidden="true">
+            <div className="grid h-12 w-12 place-items-center rounded-full bg-amber-50 dark:bg-amber-500/10">
+              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-amber-600 dark:text-amber-400" aria-hidden="true">
                 <path
                   d="M12 8.5v4.5"
                   stroke="currentColor"
@@ -113,10 +117,10 @@ export function ResetPasswordPage() {
                 />
               </svg>
             </div>
-            <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Link expired or already used
             </h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
+            <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
               Password reset links are single-use and expire after 60 minutes. Request a fresh
               one and you’ll be back in a minute.
             </p>
@@ -127,11 +131,11 @@ export function ResetPasswordPage() {
             >
               Request a new link
             </button>
-            <p className="mt-4 text-center text-sm text-slate-500">
+            <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
               <button
                 type="button"
                 onClick={() => navigate('/login', { replace: true })}
-                className="font-semibold text-brand-700 hover:text-brand-800"
+                className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-200"
               >
                 Back to log in
               </button>
@@ -141,16 +145,16 @@ export function ResetPasswordPage() {
 
         {effectivePhase === 'form' && (
           <>
-            <h1 className="mt-12 text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="mt-12 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Set a new password
             </h1>
-            <p className="mt-1.5 text-sm text-slate-500">
+            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
               Pick something you haven’t used before.
             </p>
 
             <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-5">
               <div>
-                <label htmlFor="new-password" className="block text-sm font-medium text-slate-700">
+                <label htmlFor="new-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                   New password
                 </label>
                 <div className="relative mt-1.5">
@@ -172,7 +176,7 @@ export function ResetPasswordPage() {
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-600"
+                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
                   >
                     <EyeIcon open={showPassword} />
                   </button>
@@ -183,7 +187,7 @@ export function ResetPasswordPage() {
               <div>
                 <label
                   htmlFor="confirm-password"
-                  className="block text-sm font-medium text-slate-700"
+                  className="block text-sm font-medium text-slate-700 dark:text-slate-300"
                 >
                   Confirm new password
                 </label>
@@ -205,7 +209,7 @@ export function ResetPasswordPage() {
               </div>
 
               {formError && (
-                <div role="alert" className="rounded-lg bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                <div role="alert" className="rounded-lg bg-rose-50 px-3 py-2.5 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
                   {formError}
                 </div>
               )}
@@ -229,8 +233,8 @@ export function ResetPasswordPage() {
 
         {effectivePhase === 'done' && (
           <div className="mt-12 text-center">
-            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-50">
-              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-brand-600" aria-hidden="true">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-50 dark:bg-brand-500/10">
+              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-brand-600 dark:text-brand-400" aria-hidden="true">
                 <path
                   d="m5 12.5 4.5 4.5L19 7.5"
                   stroke="currentColor"
@@ -240,10 +244,10 @@ export function ResetPasswordPage() {
                 />
               </svg>
             </div>
-            <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Password updated
             </h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
+            <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
               Your password has been changed. Use it the next time you log in.
             </p>
             <button
@@ -260,12 +264,13 @@ export function ResetPasswordPage() {
   )
 }
 
-const errorInputClass = 'border-rose-400 focus:border-rose-500 focus:ring-rose-100'
+const errorInputClass =
+  'border-rose-400 focus:border-rose-500 focus:ring-rose-100 dark:border-rose-500/60 dark:focus:border-rose-400 dark:focus:ring-rose-500/20'
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null
   return (
-    <p id={id} className="mt-1.5 text-xs text-rose-600">
+    <p id={id} className="mt-1.5 text-xs text-rose-600 dark:text-rose-400">
       {message}
     </p>
   )

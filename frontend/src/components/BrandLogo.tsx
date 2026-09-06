@@ -33,8 +33,8 @@ export function BrandLogo({ size = 'md' }: { size?: 'md' | 'lg' }) {
           />
         </svg>
       </span>
-      <span className={cx('font-bold tracking-tight text-slate-900', large ? 'text-2xl' : 'text-lg')}>
-        Finance<span className="text-brand-600">Tracker</span>
+      <span className={cx('font-bold tracking-tight text-slate-900 dark:text-white', large ? 'text-2xl' : 'text-lg')}>
+        Finance<span className="text-brand-600 dark:text-brand-400">Tracker</span>
       </span>
     </span>
   )

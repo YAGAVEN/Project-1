@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { friendlyAuthError } from '../lib/authErrors'
 import { BrandLogo } from '../components/BrandLogo'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { cx, inputClass } from '../components/ui'
 
 /**
@@ -24,12 +25,12 @@ type View = 'signin' | 'signup' | 'forgot' | 'forgot-sent'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const errorInputClass =
-  'border-rose-400 focus:border-rose-500 focus:ring-rose-100'
+  'border-rose-400 focus:border-rose-500 focus:ring-rose-100 dark:border-rose-500/60 dark:focus:border-rose-400 dark:focus:ring-rose-500/20'
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null
   return (
-    <p id={id} className="mt-1.5 text-xs text-rose-600">
+    <p id={id} className="mt-1.5 text-xs text-rose-600 dark:text-rose-400">
       {message}
     </p>
   )
@@ -41,8 +42,8 @@ function Alert({ tone, children }: { tone: 'error' | 'info'; children: ReactNode
       role={tone === 'error' ? 'alert' : 'status'}
       className={cx(
         'flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm',
-        tone === 'error' && 'bg-rose-50 text-rose-700',
-        tone === 'info' && 'bg-brand-50 text-brand-800',
+        tone === 'error' && 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400',
+        tone === 'info' && 'bg-brand-50 text-brand-800 dark:bg-brand-500/10 dark:text-brand-400',
       )}
     >
       {children}
@@ -180,19 +181,20 @@ export function LoginPage() {
     view === 'signup' ? 'Creating account…' : view === 'forgot' ? 'Sending link…' : 'Logging in…'
 
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex min-h-screen bg-white dark:bg-slate-950">
       {/* Form column */}
       <div className="flex w-full flex-col lg:w-[45%]">
-        <header className="px-6 pt-7 sm:px-12 xl:px-24">
+        <header className="flex items-center justify-between px-6 pt-7 sm:px-12 xl:px-24">
           <BrandLogo />
+          <ThemeToggle />
         </header>
 
         <main className="flex flex-1 items-center justify-center px-6 py-10 sm:px-12 xl:px-24">
           <div className="w-full max-w-sm">
             {view === 'forgot-sent' ? (
               <div>
-                <div className="grid h-12 w-12 place-items-center rounded-full bg-brand-50">
-                  <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-brand-600" aria-hidden="true">
+                <div className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 dark:bg-brand-500/10">
+                  <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-brand-600 dark:text-brand-400" aria-hidden="true">
                     <path
                       d="m5 12.5 4.5 4.5L19 7.5"
                       stroke="currentColor"
@@ -202,31 +204,31 @@ export function LoginPage() {
                     />
                   </svg>
                 </div>
-                <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">
+                <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
                   Check your inbox
                 </h1>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
+                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
                   We sent a password reset link to{' '}
-                  <span className="font-medium text-slate-700">{sentTo}</span>. It expires in 60
+                  <span className="font-medium text-slate-700 dark:text-slate-300">{sentTo}</span>. It expires in 60
                   minutes.
                 </p>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
                   Didn’t get it? Check your spam folder, or resend the email.
                 </p>
                 <button
                   type="button"
                   onClick={() => void handleResend()}
                   disabled={resending}
-                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   {resending && <SpinnerLight />}
                   {resending ? 'Resending…' : 'Resend email'}
                 </button>
-                <p className="mt-4 text-center text-sm text-slate-500">
+                <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
                   <button
                     type="button"
                     onClick={() => switchView('signin')}
-                    className="font-semibold text-brand-700 hover:text-brand-800"
+                    className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-200"
                   >
                     Back to log in
                   </button>
@@ -234,12 +236,12 @@ export function LoginPage() {
               </div>
             ) : (
               <>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
                   {view === 'signin' && 'Welcome back'}
                   {view === 'signup' && 'Create your account'}
                   {view === 'forgot' && 'Forgot password?'}
                 </h1>
-                <p className="mt-1.5 text-sm text-slate-500">
+                <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
                   {view === 'signin' && 'Log in to see where your money goes.'}
                   {view === 'signup' && 'Start tracking in under a minute.'}
                   {view === 'forgot' && 'Enter your email and we’ll send you a reset link.'}
@@ -247,7 +249,7 @@ export function LoginPage() {
 
                 <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-5">
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-slate-700">
+                    <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                       Email
                     </label>
                     <input
@@ -275,7 +277,7 @@ export function LoginPage() {
                       <div className="flex items-center justify-between">
                         <label
                           htmlFor="password"
-                          className="block text-sm font-medium text-slate-700"
+                          className="block text-sm font-medium text-slate-700 dark:text-slate-300"
                         >
                           Password
                         </label>
@@ -283,7 +285,7 @@ export function LoginPage() {
                           <button
                             type="button"
                             onClick={() => switchView('forgot')}
-                            className="text-sm font-medium text-brand-700 hover:text-brand-800"
+                            className="text-sm font-medium text-brand-700 hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-200"
                           >
                             Forgot password?
                           </button>
@@ -314,7 +316,7 @@ export function LoginPage() {
                           type="button"
                           onClick={() => setShowPassword((v) => !v)}
                           aria-label={showPassword ? 'Hide password' : 'Show password'}
-                          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-600"
+                          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
                         >
                           <EyeIcon open={showPassword} />
                         </button>
@@ -336,14 +338,14 @@ export function LoginPage() {
                   </button>
                 </form>
 
-                <p className="mt-8 text-center text-sm text-slate-500">
+                <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400">
                   {view === 'signin' ? (
                     <>
                       New to Finance Tracker?{' '}
                       <button
                         type="button"
                         onClick={() => switchView('signup')}
-                        className="font-semibold text-brand-700 hover:text-brand-800"
+                        className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-200"
                       >
                         Create an account
                       </button>
@@ -352,7 +354,7 @@ export function LoginPage() {
                     <button
                       type="button"
                       onClick={() => switchView('signin')}
-                      className="font-semibold text-brand-700 hover:text-brand-800"
+                      className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-400 dark:hover:text-brand-200"
                     >
                       ← Back to log in
                     </button>
@@ -363,7 +365,7 @@ export function LoginPage() {
           </div>
         </main>
 
-        <footer className="px-6 pb-6 text-xs text-slate-400 sm:px-12 xl:px-24">
+        <footer className="px-6 pb-6 text-xs text-slate-400 sm:px-12 xl:px-24 dark:text-slate-500">
           By continuing, you agree to Finance Tracker’s Terms of Use and Privacy Policy.
         </footer>
       </div>
@@ -376,7 +378,7 @@ export function LoginPage() {
 function SpinnerLight() {
   return (
     <span
-      className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600"
+      className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 dark:border-slate-700 dark:border-t-slate-300"
       aria-hidden="true"
     />
   )
@@ -386,28 +388,28 @@ function SpinnerLight() {
 function BrandPanel() {
   return (
     <div
-      className="relative hidden flex-1 flex-col justify-center overflow-hidden bg-brand-50 p-14 lg:flex"
+      className="relative hidden flex-1 flex-col justify-center overflow-hidden bg-brand-50 p-14 lg:flex dark:bg-brand-500/10"
       aria-hidden="true"
     >
-      <div className="absolute -right-28 -top-28 h-96 w-96 rounded-full bg-brand-100/70" />
-      <div className="absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-brand-100/50" />
+      <div className="absolute -right-28 -top-28 h-96 w-96 rounded-full bg-brand-100/70 dark:bg-brand-500/20" />
+      <div className="absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-brand-100/50 dark:bg-brand-500/15" />
 
       <div className="relative mx-auto w-full max-w-md">
-        <h2 className="text-3xl font-bold leading-tight tracking-tight text-slate-900">
-          Track. Budget. <span className="text-brand-600">Grow.</span>
+        <h2 className="text-3xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100">
+          Track. Budget. <span className="text-brand-600 dark:text-brand-400">Grow.</span>
         </h2>
-        <p className="mt-3 text-base text-slate-600">
+        <p className="mt-3 text-base text-slate-600 dark:text-slate-400">
           Every rupee, account and goal — in one calm place.
         </p>
 
-        <div className="mt-10 rounded-3xl border border-brand-100 bg-white p-6 shadow-xl shadow-brand-100/60">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="mt-10 rounded-3xl border border-brand-100 bg-white p-6 shadow-xl shadow-brand-100/60 dark:border-brand-500/20 dark:bg-slate-900 dark:shadow-black/40">
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Net position
           </div>
-          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900 tabular-nums">
+          <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
             ₹8,42,300
           </div>
-          <div className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
+          <div className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 dark:text-brand-400">
             <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
               <path
                 d="M4 17.5 9 11l4 3 7-9"
@@ -422,13 +424,12 @@ function BrandPanel() {
           <svg viewBox="0 0 300 80" className="mt-4 h-20 w-full" preserveAspectRatio="none">
             <path
               d="M0 64 30 56 60 60 90 44 120 50 150 34 180 40 210 26 240 32 270 14 300 20 300 80 0 80 Z"
-              fill="#cdeadd"
-              opacity="0.7"
+              className="fill-brand-100 opacity-70 dark:fill-brand-500/20"
             />
             <path
               d="M0 64 30 56 60 60 90 44 120 50 150 34 180 40 210 26 240 32 270 14 300 20"
               fill="none"
-              stroke="#00b386"
+              className="stroke-brand-500 dark:stroke-brand-400"
               strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -436,12 +437,12 @@ function BrandPanel() {
           </svg>
         </div>
 
-        <div className="mx-6 -mt-4 rounded-2xl border border-brand-100 bg-white p-4 shadow-lg shadow-brand-100/50">
+        <div className="mx-6 -mt-4 rounded-2xl border border-brand-100 bg-white p-4 shadow-lg shadow-brand-100/50 dark:border-brand-500/20 dark:bg-slate-900 dark:shadow-black/40">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-slate-700">Monthly budget</span>
-            <span className="tabular-nums text-slate-500">₹18,400 of ₹25,000</span>
+            <span className="font-medium text-slate-700 dark:text-slate-300">Monthly budget</span>
+            <span className="tabular-nums text-slate-500 dark:text-slate-400">₹18,400 of ₹25,000</span>
           </div>
-          <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+          <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
             <div className="h-full w-[74%] rounded-full bg-brand-500" />
           </div>
         </div>
@@ -452,7 +453,7 @@ function BrandPanel() {
             'Budgets that keep you honest',
             'Loans, goals and analytics',
           ].map((line) => (
-            <li key={line} className="flex items-center gap-3 text-sm font-medium text-slate-700">
+            <li key={line} className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-300">
               <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-500 text-white">
                 <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3" aria-hidden="true">
                   <path

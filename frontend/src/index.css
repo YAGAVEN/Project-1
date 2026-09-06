@@ -17,3 +17,33 @@
   --color-brand-700: #007a5a;
   --color-brand-800: #005c43;
 }
+
+/*
+ * Class-based dark mode (groww-dark theme, 2026-09-06): the ThemeToggle
+ * flips `.dark` on <html>; index.html's inline script applies it pre-paint.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Income/expense semantics flip per mode, so they live in runtime vars
+ * instead of `dark:` pairs at every call site. Light keeps today's
+ * emerald/rose; dark switches to the Groww-dark pairing: neon green income
+ * and a readable red expense (rose-400 tier for AA on dark surfaces).
+ * Transfer stays blue and loan amber in both modes. `@theme inline`
+ * (not plain @theme) keeps the var indirection, so utilities like
+ * `bg-income/10` resolve at paint time and follow the mode.
+ */
+:root {
+  --income: #059669; /* emerald-600 */
+  --expense: #e11d48; /* rose-600 */
+}
+
+.dark {
+  --income: #00e09e; /* Groww dark neon green */
+  --expense: #fb7185; /* rose-400 — red reads as expense on dark */
+}
+
+@theme inline {
+  --color-income: var(--income);
+  --color-expense: var(--expense);
+}
