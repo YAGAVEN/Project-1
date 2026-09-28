@@ -266,7 +266,7 @@ export function DashboardPage() {
                   <span className="flex shrink-0 items-center gap-3 text-slate-500 dark:text-slate-400">
                     <span className="hidden text-xs sm:inline">{txn.accountName ?? txn.counterAccountName}</span>
                     <span className="text-xs">{txn.transactionDate}</span>
-                    <span className={cx('w-24 text-right font-medium tabular-nums', txn.transactionType === 'INCOME' || txn.transactionType === 'LOAN_REPAYMENT_IN' || txn.transactionType === 'LOAN_RECEIVED' ? 'text-income' : 'text-slate-800 dark:text-slate-100')}>
+                    <span className={cx('w-24 text-right font-medium tabular-nums', txn.transactionType === 'INCOME' || txn.transactionType === 'LOAN_REPAYMENT_IN' || txn.transactionType === 'LOAN_RECEIVED' ? 'text-income' : 'text-slate-800 dark:text-red-500')}>
                       {txn.transactionType === 'INCOME' ? '+' : txn.transactionType === 'EXPENSE' ? '−' : ''}
                       {formatINR(txn.amount)}
                     </span>
