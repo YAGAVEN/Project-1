@@ -94,6 +94,25 @@ function ProfileCard() {
   )
 }
 
+/** 409 payload from DELETE /categories/{id} — usage counts for the replacement dialog. */
+interface CategoryUsage {
+  transactionCount: number
+  subcategoryCount: number
+}
+
+function inUseDetails(err: unknown): CategoryUsage | null {
+  if (typeof err === 'object' && err !== null && 'response' in err) {
+    const data = (err as { response?: { data?: Record<string, unknown> } }).response?.data
+    if (data && typeof data.transactionCount === 'number') {
+      return {
+        transactionCount: data.transactionCount,
+        subcategoryCount: Number(data.subcategoryCount ?? 0),
+      }
+    }
+  }
+  return null
+}
+
 function CategoriesCard() {
   const { data: categories = [], isLoading } = useCategories(true)
   const createCategory = useCreateCategory()
@@ -106,6 +125,8 @@ function CategoriesCard() {
   const [editing, setEditing] = useState<Category | null>(null)
   const [editName, setEditName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState<{ category: Category; usage: CategoryUsage } | null>(null)
+  const [replacementId, setReplacementId] = useState('')
 
   const queryClient = useQueryClient()
 
@@ -127,6 +148,35 @@ function CategoriesCard() {
       refresh()
     } catch (err) {
       setError(errorMessage(err))
+    }
+  }
+
+  /** §18 — unused categories delete directly; used ones open the replacement dialog. */
+  async function remove(category: Category) {
+    setError(null)
+    try {
+      await deleteCategory.mutateAsync({ id: category.id })
+      refresh()
+    } catch (err) {
+      const usage = inUseDetails(err)
+      if (usage) {
+        setReplacementId('')
+        setPending({ category, usage })
+      } else {
+        alert(errorMessage(err))
+      }
+    }
+  }
+
+  async function confirmReplace(event: React.FormEvent) {
+    event.preventDefault()
+    if (!pending || !replacementId) return
+    try {
+      await deleteCategory.mutateAsync({ id: pending.category.id, replacementId })
+      setPending(null)
+      refresh()
+    } catch (err) {
+      alert(errorMessage(err))
     }
   }
 
@@ -153,7 +203,7 @@ function CategoriesCard() {
           </button>
           <button
             type="button"
-            onClick={() => void deleteCategory.mutateAsync((child ?? category).id).then(refresh).catch((err) => alert(errorMessage(err)))}
+            onClick={() => void remove(child ?? category)}
             className="text-xs text-rose-500 hover:underline dark:text-rose-400"
           >
             delete
@@ -244,6 +294,43 @@ function CategoriesCard() {
             <button type="submit" className={primaryButtonClass}>Save</button>
           </div>
         </form>
+      </Modal>
+
+      {/* §18 — used categories remap onto a replacement, then hard-delete */}
+      <Modal open={pending !== null} onClose={() => setPending(null)} title="Category in use">
+        {pending && (
+          <form onSubmit={confirmReplace} className="space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              <span className="font-medium text-slate-800 dark:text-slate-100">{pending.category.name}</span>{' '}
+              is used by {pending.usage.transactionCount} {pending.usage.transactionCount === 1 ? 'transaction' : 'transactions'}
+              {pending.usage.subcategoryCount > 0 &&
+                ` and has ${pending.usage.subcategoryCount} ${pending.usage.subcategoryCount === 1 ? 'subcategory' : 'subcategories'}`}
+              . Choose a replacement to move them to — “{pending.category.name}” is then removed completely.
+            </p>
+            <Field label="Replacement category">
+              <select required value={replacementId} onChange={(event) => setReplacementId(event.target.value)} className={inputClass}>
+                <option value="" disabled>Choose a {pending.category.categoryType === 'INCOME' ? 'income' : 'expense'} category…</option>
+                {categories
+                  .filter((candidate) =>
+                    candidate.categoryType === pending.category.categoryType &&
+                    candidate.isActive &&
+                    candidate.id !== pending.category.id &&
+                    candidate.parentCategoryId !== pending.category.id)
+                  .map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+                  ))}
+              </select>
+            </Field>
+            <div className="flex items-center justify-end gap-3">
+              <button type="button" onClick={() => setPending(null)} className="text-sm text-slate-500 hover:underline dark:text-slate-400">
+                Cancel
+              </button>
+              <button type="submit" disabled={deleteCategory.isPending || !replacementId} className={primaryButtonClass}>
+                {deleteCategory.isPending ? 'Moving…' : 'Move & delete'}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </Card>
   )

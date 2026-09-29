@@ -50,7 +50,7 @@ const dark: ChartTheme = {
     labelStyle: { color: '#94a3b8' },
   },
   income: '#00e09e',
-  expense: '#fb7185',
+  expense: '#ff1744',
   brand: '#00d09c',
   donut: ['#00d09c', '#38bdf8', '#fbbf24', '#a78bfa', '#f87171', '#2dd4bf', '#fb923c', '#94a3b8'],
 }

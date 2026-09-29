@@ -40,7 +40,7 @@
 
 .dark {
   --income: #00e09e; /* Groww dark neon green */
-  --expense: #fb7185; /* rose-400 — red reads as expense on dark */
+  --expense: #ff1744; /* neon red (user pick) — expense reads red-hot on dark */
 }
 
 @theme inline {

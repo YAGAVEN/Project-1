@@ -78,4 +78,35 @@ class PeriodResolverTest {
         var week = PeriodResolver.resolve(PeriodType.WEEK, LocalDate.of(2026, 9, 4));
         assertThat(PeriodResolver.buckets(PeriodType.WEEK, week)).hasSize(7);
     }
+
+    @Test
+    void threeMonthsRollsBackFromTheAnchor() {
+        var window = PeriodResolver.resolve(PeriodType.THREE_MONTHS, LocalDate.of(2026, 9, 29));
+
+        assertThat(window.startDate()).isEqualTo(LocalDate.of(2026, 6, 30));
+        assertThat(window.endDate()).isEqualTo(LocalDate.of(2026, 9, 29));
+    }
+
+    @Test
+    void sixMonthsRollsBackFromTheAnchor() {
+        var window = PeriodResolver.resolve(PeriodType.SIX_MONTHS, LocalDate.of(2026, 9, 29));
+
+        assertThat(window.startDate()).isEqualTo(LocalDate.of(2026, 3, 30));
+        assertThat(window.endDate()).isEqualTo(LocalDate.of(2026, 9, 29));
+    }
+
+    @Test
+    void rollingWindowsGetMonthlyBucketsClampedToTheWindow() {
+        var three = PeriodResolver.resolve(PeriodType.THREE_MONTHS, LocalDate.of(2026, 9, 29));
+
+        List<PeriodResolver.Period> buckets = PeriodResolver.buckets(PeriodType.THREE_MONTHS, three);
+        assertThat(buckets).hasSize(4);
+        // partial first and last months
+        assertThat(buckets.get(0).startDate()).isEqualTo(LocalDate.of(2026, 6, 30));
+        assertThat(buckets.get(0).endDate()).isEqualTo(LocalDate.of(2026, 6, 30));
+        assertThat(buckets.get(1).startDate()).isEqualTo(LocalDate.of(2026, 7, 1));
+        assertThat(buckets.get(1).endDate()).isEqualTo(LocalDate.of(2026, 7, 31));
+        assertThat(buckets.get(3).startDate()).isEqualTo(LocalDate.of(2026, 9, 1));
+        assertThat(buckets.get(3).endDate()).isEqualTo(LocalDate.of(2026, 9, 29));
+    }
 }

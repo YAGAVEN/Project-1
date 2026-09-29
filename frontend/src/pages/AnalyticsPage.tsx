@@ -15,7 +15,7 @@ import {
   YAxis,
 } from 'recharts'
 import { PeriodSelector } from '../components/PeriodSelector'
-import { Card, EmptyState, PageHeader, SectionTitle, Spinner } from '../components/ui'
+import { Card, EmptyState, PageHeader, SectionTitle, Spinner, StatCard } from '../components/ui'
 import { chartTheme } from '../lib/chartTheme'
 import { formatBucket, formatINR, formatINRCompact, todayISO } from '../lib/format'
 import {
@@ -24,6 +24,7 @@ import {
   useIncomeExpense,
   useSavingsProgress,
   useSpendingTrend,
+  useTransactionSummary,
   type Period,
 } from '../lib/queries'
 import { useTheme } from '../theme/ThemeContext'
@@ -32,6 +33,7 @@ export function AnalyticsPage() {
   const [period, setPeriod] = useState<Period>({ periodType: 'MONTH', date: todayISO() })
   const { theme } = useTheme()
   const ct = chartTheme(theme === 'dark')
+  const summary = useTransactionSummary(period.date, period.periodType)
   const incomeExpense = useIncomeExpense(period)
   const spendingTrend = useSpendingTrend(period)
   const categories = useExpenseCategories(period)
@@ -39,13 +41,32 @@ export function AnalyticsPage() {
   const cashflow = useAccountCashflow(period)
 
   const loading =
-    incomeExpense.isLoading || spendingTrend.isLoading || categories.isLoading || savings.isLoading || cashflow.isLoading
+    summary.isLoading ||
+    incomeExpense.isLoading ||
+    spendingTrend.isLoading ||
+    categories.isLoading ||
+    savings.isLoading ||
+    cashflow.isLoading
 
   return (
     <div className="space-y-6">
       <PageHeader title="Analytics">
         <PeriodSelector value={period} onChange={setPeriod} />
       </PageHeader>
+
+      {/* Report summary for the selected range (1M/3M/6M/1Y et al.) */}
+      {!loading && summary.data && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatCard label="Income" value={formatINR(summary.data.income)} tone="positive" />
+          <StatCard label="Expenses" value={formatINR(summary.data.expense)} tone="negative" />
+          <StatCard
+            label="Net cash flow"
+            value={formatINR(summary.data.netCashFlow)}
+            tone={summary.data.netCashFlow >= 0 ? 'positive' : 'negative'}
+            hint={`${summary.data.count} transactions`}
+          />
+        </div>
+      )}
 
       {loading ? <Spinner label="Crunching numbers…" /> : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">

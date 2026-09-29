@@ -18,7 +18,8 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
     Optional<Category> findByIdAndUserId(UUID id, UUID userId);
 
-    boolean existsByUserIdAndParentCategoryIdAndIsActiveTrue(UUID userId, UUID parentCategoryId);
+    /** All children regardless of active state — the remap-delete merge needs the full subtree. */
+    List<Category> findByUserIdAndParentCategoryId(UUID userId, UUID parentCategoryId);
 
     /** Used by the dev seeder to find seeded defaults by name. */
     Optional<Category> findByUserIdAndCategoryTypeAndNameIgnoreCase(UUID userId, CategoryType categoryType, String name);
