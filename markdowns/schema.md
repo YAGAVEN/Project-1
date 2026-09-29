@@ -559,7 +559,7 @@ every join path used by the API.
 | Entity | Rule |
 |---|---|
 | Account | Deactivate if transactions exist; hard delete only if none |
-| Category | Deactivate if referenced by transactions or active children; otherwise hard delete |
+| Category | Always hard-deleted, never left inactive. Unused (no transactions in its subtree, no subcategories) it deletes directly; used, the API answers 409 with usage counts until a replacement category is named — then the category's and its subcategories' transactions remap to the replacement, its subcategories and budget templates are removed, and the category is hard-deleted |
 | Contact | Hard delete only if no loans reference it; otherwise 409 |
 | Loan | Hard delete (loan + origin transaction, atomically) only if no payments exist; otherwise 409 |
 | Transaction | Hard delete. `LOAN_*` types only through loan endpoints. Type immutable on update |

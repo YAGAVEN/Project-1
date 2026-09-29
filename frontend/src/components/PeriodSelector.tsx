@@ -3,9 +3,16 @@ import { formatAnchor, shiftAnchor, todayISO } from '../lib/format'
 import type { Period } from '../lib/queries'
 import type { PeriodType } from '../lib/types'
 
-const TYPES: PeriodType[] = ['DAY', 'WEEK', 'MONTH', 'YEAR']
+const TYPES: { type: PeriodType; label: string }[] = [
+  { type: 'DAY', label: 'Day' },
+  { type: 'WEEK', label: 'Week' },
+  { type: 'MONTH', label: 'Month' },
+  { type: 'THREE_MONTHS', label: '3M' },
+  { type: 'SIX_MONTHS', label: '6M' },
+  { type: 'YEAR', label: 'Year' },
+]
 
-/** frontend.md §6 — reusable Day/Week/Month/Year selector with prev/next arrows. */
+/** frontend.md §6 — reusable Day/Week/Month/3M/6M/Year selector with prev/next arrows. */
 export function PeriodSelector({
   value,
   onChange,
@@ -16,19 +23,19 @@ export function PeriodSelector({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900">
-        {TYPES.map((type) => (
+        {TYPES.map(({ type, label }) => (
           <button
             key={type}
             type="button"
             onClick={() => onChange({ periodType: type, date: value.date })}
             className={cx(
-              'rounded-md px-3 py-1.5 text-xs font-medium capitalize',
+              'rounded-md px-3 py-1.5 text-xs font-medium',
               value.periodType === type
                 ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
                 : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800',
             )}
           >
-            {type}
+            {label}
           </button>
         ))}
       </div>

@@ -1,6 +1,7 @@
 package org.finance.tracker.category;
 
 import lombok.RequiredArgsConstructor;
+import org.finance.tracker.budget.BudgetRepository;
 import org.finance.tracker.common.BadRequestException;
 import org.finance.tracker.common.ConflictException;
 import org.finance.tracker.common.NotFoundException;
@@ -8,6 +9,7 @@ import org.finance.tracker.transaction.TransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,6 +19,7 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
+    private final BudgetRepository budgetRepository;
 
     @Transactional(readOnly = true)
     public List<Category> list(UUID userId, CategoryType type, boolean includeInactive) {
@@ -65,20 +68,53 @@ public class CategoryService {
         return categoryRepository.save(category);
     }
 
-    /** schema.md §18 — deactivate when referenced by transactions or active children, hard delete otherwise. */
+    /**
+     * schema.md §18 — a category is always hard-deleted, never left inactive.
+     * Unused (no transactions anywhere in its subtree, no subcategories) it
+     * deletes directly. Used, it must name a replacement: every transaction of
+     * the category and its subcategories remaps there, its subcategories and
+     * budget templates are removed, then the category itself is deleted.
+     * Without a replacement a used category answers 409 with usage counts so
+     * the UI can ask which category should be used instead.
+     */
     @Transactional
-    public void delete(UUID userId, UUID categoryId) {
+    public void delete(UUID userId, UUID categoryId, UUID replacementCategoryId) {
         Category category = findOwned(userId, categoryId);
-        boolean hasActiveChildren =
-                categoryRepository.existsByUserIdAndParentCategoryIdAndIsActiveTrue(userId, category.getId());
-        boolean referencedByTransactions =
-                transactionRepository.existsReferencingCategory(userId, category.getId());
-        if (hasActiveChildren || referencedByTransactions) {
-            category.setActive(false);
-            categoryRepository.save(category);
-        } else {
+        List<Category> children = categoryRepository.findByUserIdAndParentCategoryId(userId, category.getId());
+
+        List<UUID> removedIds = new ArrayList<>();
+        removedIds.add(category.getId());
+        children.forEach(child -> removedIds.add(child.getId()));
+
+        long transactionCount = transactionRepository.countByUserIdAndCategoryIdIn(userId, removedIds);
+        if (transactionCount == 0 && children.isEmpty()) {
             categoryRepository.delete(category);
+            return;
         }
+
+        if (replacementCategoryId == null) {
+            throw new CategoryInUseException(transactionCount, children.size());
+        }
+
+        Category replacement = findOwned(userId, replacementCategoryId);
+        if (replacement.getId().equals(category.getId())) {
+            throw new BadRequestException("The replacement must be a different category");
+        }
+        if (replacement.getCategoryType() != category.getCategoryType()) {
+            throw new BadRequestException(
+                    "Replacement must be a " + category.getCategoryType() + " category");
+        }
+        if (!replacement.isActive()) {
+            throw new BadRequestException("Replacement category '" + replacement.getName() + "' is deactivated");
+        }
+        if (children.stream().anyMatch(child -> child.getId().equals(replacement.getId()))) {
+            throw new BadRequestException("Cannot remap to a subcategory that is being deleted");
+        }
+
+        transactionRepository.remapCategoryTo(userId, removedIds, replacement.getId());
+        budgetRepository.deleteAll(budgetRepository.findAllByUserIdAndCategoryIdIn(userId, removedIds));
+        categoryRepository.deleteAll(children);
+        categoryRepository.delete(category);
     }
 
     /** Scoped lookup: another user's id must look like a missing one (404, never 403). */

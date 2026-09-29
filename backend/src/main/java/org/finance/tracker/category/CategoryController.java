@@ -48,10 +48,12 @@ public class CategoryController {
         return toResponse(categoryService.update(currentUser.requireUserId(), id, request));
     }
 
+    /** ?replacementCategoryId= names where a used category's transactions move to (schema.md §18). */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void delete(@PathVariable UUID id) {
-        categoryService.delete(currentUser.requireUserId(), id);
+    void delete(@PathVariable UUID id,
+                @RequestParam(required = false, name = "replacementCategoryId") UUID replacementCategoryId) {
+        categoryService.delete(currentUser.requireUserId(), id, replacementCategoryId);
     }
 
     private CategoryDtos.CategoryResponse toResponse(Category category) {

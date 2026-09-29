@@ -32,6 +32,9 @@ export function shiftAnchor(periodType: PeriodType, date: string, direction: 1 |
   if (periodType === 'DAY') d.setDate(d.getDate() + direction)
   if (periodType === 'WEEK') d.setDate(d.getDate() + 7 * direction)
   if (periodType === 'MONTH') d.setMonth(d.getMonth() + direction)
+  // rolling windows shift by their own span so windows never overlap
+  if (periodType === 'THREE_MONTHS') d.setMonth(d.getMonth() + 3 * direction)
+  if (periodType === 'SIX_MONTHS') d.setMonth(d.getMonth() + 6 * direction)
   if (periodType === 'YEAR') d.setFullYear(d.getFullYear() + direction)
   return d.toISOString().slice(0, 10)
 }
@@ -52,6 +55,13 @@ export function formatAnchor(periodType: PeriodType, date: string): string {
     return sameMonth
       ? `${monday.getDate()}–${sunday.getDate()} ${monthNames[sunday.getMonth()]} ${sunday.getFullYear()}`
       : `${monday.getDate()} ${monthNames[monday.getMonth()]} – ${sunday.getDate()} ${monthNames[sunday.getMonth()]}`
+  }
+  if (periodType === 'THREE_MONTHS' || periodType === 'SIX_MONTHS') {
+    const months = periodType === 'THREE_MONTHS' ? 3 : 6
+    const start = new Date(d)
+    start.setMonth(start.getMonth() - months)
+    start.setDate(start.getDate() + 1)
+    return `${start.getDate()} ${monthNames[start.getMonth()]} – ${d.getDate()} ${monthNames[d.getMonth()]}`
   }
   return `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`
 }

@@ -1,6 +1,6 @@
 /** Mirrors the Spring API contract (backend.md §8) — one place, per module. */
 
-export type PeriodType = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR'
+export type PeriodType = 'DAY' | 'WEEK' | 'MONTH' | 'THREE_MONTHS' | 'SIX_MONTHS' | 'YEAR'
 export interface PeriodWindow {
   startDate: string
   endDate: string

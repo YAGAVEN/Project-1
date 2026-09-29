@@ -1,6 +1,7 @@
 package org.finance.tracker.common;
 
 import lombok.extern.slf4j.Slf4j;
+import org.finance.tracker.category.CategoryInUseException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -67,6 +68,15 @@ public class GlobalExceptionHandler {
     ProblemDetail handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.METHOD_NOT_ALLOWED,
                 "Method not allowed on this endpoint");
+    }
+
+    /** 409 with usage counts — the UI needs them to build the "pick a replacement" dialog. */
+    @ExceptionHandler(CategoryInUseException.class)
+    ProblemDetail handleCategoryInUse(CategoryInUseException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setProperty("transactionCount", ex.getTransactionCount());
+        problem.setProperty("subcategoryCount", ex.getSubcategoryCount());
+        return problem;
     }
 
     /** Service-level checks make this rare (e.g. duplicate-budget race) — surface it as the 409 it is. */

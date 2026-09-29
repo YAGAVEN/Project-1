@@ -196,7 +196,7 @@ function TransactionRow({ txn }: { txn: Transaction }) {
       </span>
       <span className="flex shrink-0 items-center gap-3">
         <span className="hidden text-xs text-slate-400 md:inline dark:text-slate-500">{accountLine}</span>
-        <span className={cx('w-28 text-right font-medium tabular-nums', credit ? 'text-income' : 'text-slate-900 dark:text-slate-100')}>
+        <span className={cx('w-28 text-right font-medium tabular-nums', credit ? 'text-income' : 'text-expense')}>
           {credit ? '+' : txn.transactionType === 'EXPENSE' ? '−' : ''}
           {formatINR(txn.amount)}
         </span>

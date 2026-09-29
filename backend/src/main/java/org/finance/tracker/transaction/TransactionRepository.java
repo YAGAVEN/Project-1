@@ -3,6 +3,7 @@ package org.finance.tracker.transaction;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -173,11 +174,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             """)
     boolean existsReferencingAccount(@Param("accountId") UUID accountId);
 
+    /** Usage count across a category and its subcategories (remap-delete check). */
     @Query("""
-            select count(t) > 0 from Transaction t
-            where t.userId = :userId and t.categoryId = :categoryId
+            select count(t) from Transaction t
+            where t.userId = :userId and t.categoryId in :ids
             """)
-    boolean existsReferencingCategory(@Param("userId") UUID userId, @Param("categoryId") UUID categoryId);
+    long countByUserIdAndCategoryIdIn(@Param("userId") UUID userId, @Param("ids") Collection<UUID> ids);
+
+    /** schema.md §18 — move every transaction of the removed categories onto the replacement. */
+    @Modifying
+    @Query("""
+            update Transaction t set t.categoryId = :replacement
+            where t.userId = :userId and t.categoryId in :ids
+            """)
+    int remapCategoryTo(@Param("userId") UUID userId, @Param("ids") Collection<UUID> ids,
+                        @Param("replacement") UUID replacement);
 
     Optional<Transaction> findByIdAndUserId(UUID id, UUID userId);
 }

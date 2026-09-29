@@ -145,10 +145,10 @@ export function useTransactions(filters: TransactionFilters) {
   })
 }
 
-export function useTransactionSummary(date: string) {
+export function useTransactionSummary(date: string, periodType: PeriodType = 'MONTH') {
   return useQuery({
-    queryKey: ['transactions', 'summary', date],
-    queryFn: () => get<TransactionSummary>('/transactions/summary', { periodType: 'MONTH', date }),
+    queryKey: ['transactions', 'summary', periodType, date],
+    queryFn: () => get<TransactionSummary>('/transactions/summary', { periodType, date }),
   })
 }
 
@@ -189,8 +189,17 @@ export function useUpdateCategory() {
   )
 }
 
+/**
+ * schema.md §18 — an unused category deletes directly; a used one answers 409
+ * with usage counts, and the caller retries with a replacementCategoryId to
+ * remap its transactions onto and complete the delete.
+ */
 export function useDeleteCategory() {
-  return useInvalidatingMutation((id: string) => api.delete(`/categories/${id}`))
+  return useInvalidatingMutation(({ id, replacementId }: { id: string; replacementId?: string }) =>
+    api.delete(`/categories/${id}`, {
+      params: replacementId ? { replacementCategoryId: replacementId } : undefined,
+    }),
+  )
 }
 
 // ---- budgets ----
