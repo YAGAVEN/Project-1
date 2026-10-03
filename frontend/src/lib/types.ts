@@ -323,6 +323,8 @@ export interface AccountBody {
 
 export interface AccountUpdateBody {
   name?: string
+  /** Desired current balance — the backend re-anchors openingBalance to hit it. */
+  balance?: number
   creditLimit?: number
   billingDay?: number
   paymentDueDay?: number

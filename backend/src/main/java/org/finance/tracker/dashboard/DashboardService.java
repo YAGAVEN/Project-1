@@ -61,8 +61,10 @@ public class DashboardService {
 
         List<AccountDtos.AccountResponse> accounts = accountService.list(userId);
 
-        BigDecimal income = transactionRepository.sumAmountByTypeInWindow(userId, TransactionType.INCOME, start, endExclusive);
-        BigDecimal expense = transactionRepository.sumAmountByTypeInWindow(userId, TransactionType.EXPENSE, start, endExclusive);
+        // The series scan doubles as the window totals — no separate Σ queries.
+        SeriesResult series = buildSeries(userId, windowType, window);
+        BigDecimal income = series.income();
+        BigDecimal expense = series.expense();
         BigDecimal totalBalance = accounts.stream()
                 .map(AccountDtos.AccountResponse::balance)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -73,7 +75,7 @@ public class DashboardService {
         return new DashboardDtos.DashboardResponse(
                 new DashboardDtos.PeriodDto(windowType, start, window.endDate()),
                 new DashboardDtos.Totals(totalBalance, income, expense, income.subtract(expense)),
-                buildSeries(userId, windowType, window),
+                series.points(),
                 expenseByCategory(userId, expense, start, endExclusive),
                 budgetUsage.stream().map(this::toBudgetWidget).toList(),
                 accounts.stream().map(this::toAccountWidget).toList(),
@@ -82,9 +84,13 @@ public class DashboardService {
                 toRecentTransactions(recent));
     }
 
+    /** Series + the window's income/expense totals from the same scan — no separate Σ queries. */
+    private record SeriesResult(List<DashboardDtos.SeriesPoint> points, BigDecimal income, BigDecimal expense) {
+    }
+
     /** Series granularity (§6.1): DAY → hourly, WEEK/MONTH → daily, YEAR → monthly. */
-    private List<DashboardDtos.SeriesPoint> buildSeries(UUID userId, PeriodType windowType,
-                                                        PeriodResolver.Period window) {
+    private SeriesResult buildSeries(UUID userId, PeriodType windowType,
+                                     PeriodResolver.Period window) {
         LocalDate start = window.startDate();
         LocalDate endExclusive = window.endDate().plusDays(1);
         List<DashboardDtos.SeriesPoint> points = new ArrayList<>();
@@ -100,10 +106,14 @@ public class DashboardService {
                     expense[hour] = expense[hour].add(t.getAmount());
                 }
             }
+            BigDecimal incomeTotal = BigDecimal.ZERO;
+            BigDecimal expenseTotal = BigDecimal.ZERO;
             for (int hour = 0; hour < 24; hour++) {
                 points.add(new DashboardDtos.SeriesPoint(String.format("%02d:00", hour), income[hour], expense[hour]));
+                incomeTotal = incomeTotal.add(income[hour]);
+                expenseTotal = expenseTotal.add(expense[hour]);
             }
-            return points;
+            return new SeriesResult(points, incomeTotal, expenseTotal);
         }
 
         Map<LocalDate, BigDecimal[]> byDay = dailyTotals(userId, start, endExclusive);
@@ -129,7 +139,14 @@ public class DashboardService {
                 points.add(new DashboardDtos.SeriesPoint(day.toString(), pair[0], pair[1]));
             }
         }
-        return points;
+
+        BigDecimal incomeTotal = BigDecimal.ZERO;
+        BigDecimal expenseTotal = BigDecimal.ZERO;
+        for (BigDecimal[] pair : byDay.values()) {
+            incomeTotal = incomeTotal.add(pair[0]);
+            expenseTotal = expenseTotal.add(pair[1]);
+        }
+        return new SeriesResult(points, incomeTotal, expenseTotal);
     }
 
     private Map<LocalDate, BigDecimal[]> dailyTotals(UUID userId, LocalDate start, LocalDate endExclusive) {
@@ -180,18 +197,27 @@ public class DashboardService {
         LocalDate monthStart = anchor.withDayOfMonth(1);
         LocalDate monthEndExclusive = monthStart.plusMonths(1);
 
+        List<AccountDtos.AccountResponse> cardAccounts = accounts.stream()
+                .filter(account -> account.accountType() == AccountType.CREDIT_CARD)
+                .toList();
+        if (cardAccounts.isEmpty()) {
+            return List.of();
+        }
+        // one grouped Σ for every card instead of one per card
+        Map<UUID, BigDecimal> monthSpend = new HashMap<>();
+        for (Object[] row : transactionRepository.totalsByFromAccount(
+                userId, TransactionType.EXPENSE, monthStart, monthEndExclusive)) {
+            monthSpend.put((UUID) row[0], (BigDecimal) row[1]);
+        }
+
         List<DashboardDtos.CreditCardWidget> cards = new ArrayList<>();
-        for (AccountDtos.AccountResponse account : accounts) {
-            if (account.accountType() != AccountType.CREDIT_CARD) {
-                continue;
-            }
+        for (AccountDtos.AccountResponse account : cardAccounts) {
             BigDecimal outstanding = account.balance().negate().max(BigDecimal.ZERO);
             BigDecimal availableCredit = account.creditLimit() == null
                     ? null
                     : account.creditLimit().subtract(outstanding);
-            BigDecimal monthSpend = transactionRepository.sumByFromAccountInWindow(
-                    account.id(), TransactionType.EXPENSE, monthStart, monthEndExclusive);
-            cards.add(new DashboardDtos.CreditCardWidget(account.id(), outstanding, availableCredit, monthSpend));
+            cards.add(new DashboardDtos.CreditCardWidget(account.id(), outstanding, availableCredit,
+                    monthSpend.getOrDefault(account.id(), BigDecimal.ZERO)));
         }
         return cards;
     }

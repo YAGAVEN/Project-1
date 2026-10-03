@@ -10,6 +10,7 @@ import org.finance.tracker.common.ConflictException;
 import org.finance.tracker.common.NotFoundException;
 import org.finance.tracker.common.PageResponse;
 import org.finance.tracker.common.PeriodResolver;
+import org.finance.tracker.common.PeriodType;
 import org.finance.tracker.transaction.TransactionDtos;
 import org.finance.tracker.transaction.TransactionRepository;
 import org.finance.tracker.transaction.TransactionService;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -64,14 +66,45 @@ public class BudgetService {
     @Transactional(readOnly = true)
     public List<BudgetDtos.UsageItem> listUsage(UUID userId, LocalDate anchor) {
         List<Budget> templates = budgetRepository.findByUserIdAndIsActiveTrueOrderByCreatedAtAsc(userId);
+        if (templates.isEmpty()) {
+            return List.of();
+        }
         Set<UUID> categoryIds = new HashSet<>();
         for (Budget budget : templates) {
             categoryIds.add(budget.getCategoryId());
         }
         Map<UUID, String> categoryNames = categoryNames(categoryIds);
+
+        // Templates sharing a period type share one window — one grouped Σ query per window type.
+        Map<BudgetPeriodType, PeriodResolver.Period> windows = new EnumMap<>(BudgetPeriodType.class);
+        Map<BudgetPeriodType, Map<UUID, BigDecimal>> usedByType = new EnumMap<>(BudgetPeriodType.class);
+        for (Budget budget : templates) {
+            BudgetPeriodType periodType = budget.getPeriodType();
+            windows.computeIfAbsent(periodType, type -> PeriodResolver.resolve(type.toPeriodType(), anchor));
+            usedByType.computeIfAbsent(periodType, type -> {
+                PeriodResolver.Period window = windows.get(type);
+                return spentByCategory(userId, categoryIds, window.startDate(), window.endDate().plusDays(1));
+            });
+        }
+
         return templates.stream()
-                .map(budget -> usageItem(userId, budget, anchor, categoryNames))
+                .map(budget -> {
+                    PeriodResolver.Period window = windows.get(budget.getPeriodType());
+                    BigDecimal used = usedByType.get(budget.getPeriodType())
+                            .getOrDefault(budget.getCategoryId(), BigDecimal.ZERO);
+                    return usageItem(budget, used, window, categoryNames);
+                })
                 .toList();
+    }
+
+    private Map<UUID, BigDecimal> spentByCategory(UUID userId, Set<UUID> categoryIds,
+                                                  LocalDate start, LocalDate endExclusive) {
+        Map<UUID, BigDecimal> used = new HashMap<>();
+        for (Object[] row : transactionRepository.totalsByCategoryIdsInWindow(
+                userId, TransactionType.EXPENSE, categoryIds, start, endExclusive)) {
+            used.put((UUID) row[0], (BigDecimal) row[1]);
+        }
+        return used;
     }
 
     @Transactional
@@ -152,11 +185,26 @@ public class BudgetService {
                 .getOrDefault(budget.getCategoryId(), "");
 
         List<BudgetDtos.HistoryPoint> points = new java.util.ArrayList<>();
+
+        // One daily-grouped Σ covers every window; each point re-aggregates from it in Java.
+        PeriodType historyType = budget.getPeriodType().toPeriodType();
+        LocalDate firstStart = PeriodResolver.resolve(historyType,
+                shift(budget.getPeriodType(), anchor, count - 1)).startDate();
+        LocalDate lastEndExclusive = PeriodResolver.resolve(historyType, anchor).endDate().plusDays(1);
+        Map<LocalDate, BigDecimal> spentByDay = new HashMap<>();
+        for (Object[] row : transactionRepository.dailyTotalsByCategory(userId, TransactionType.EXPENSE,
+                budget.getCategoryId(), firstStart, lastEndExclusive)) {
+            spentByDay.put((LocalDate) row[0], (BigDecimal) row[1]);
+        }
+
         for (int i = count - 1; i >= 0; i--) {
             LocalDate pastAnchor = shift(budget.getPeriodType(), anchor, i);
-            PeriodResolver.Period window = PeriodResolver.resolve(budget.getPeriodType().toPeriodType(), pastAnchor);
-            BigDecimal used = transactionRepository.sumByCategoryInWindow(userId, TransactionType.EXPENSE,
-                    budget.getCategoryId(), window.startDate(), window.endDate().plusDays(1));
+            PeriodResolver.Period window = PeriodResolver.resolve(historyType, pastAnchor);
+            LocalDate endExclusive = window.endDate().plusDays(1);
+            BigDecimal used = BigDecimal.ZERO;
+            for (LocalDate day = window.startDate(); day.isBefore(endExclusive); day = day.plusDays(1)) {
+                used = used.add(spentByDay.getOrDefault(day, BigDecimal.ZERO));
+            }
             double percentage = percentageOf(budget, used);
             points.add(new BudgetDtos.HistoryPoint(window, used, percentage, BudgetStatus.of(percentage)));
         }
@@ -167,11 +215,17 @@ public class BudgetService {
 
     // ---- usage engine (§6.5) ----------------------------------------------
 
+    /** Single-template path (create/update): its own window and Σ query. */
     private BudgetDtos.UsageItem usageItem(UUID userId, Budget budget, LocalDate anchor,
                                            Map<UUID, String> categoryNames) {
         PeriodResolver.Period window = PeriodResolver.resolve(budget.getPeriodType().toPeriodType(), anchor);
         BigDecimal used = transactionRepository.sumByCategoryInWindow(userId, TransactionType.EXPENSE,
                 budget.getCategoryId(), window.startDate(), window.endDate().plusDays(1));
+        return usageItem(budget, used, window, categoryNames);
+    }
+
+    private BudgetDtos.UsageItem usageItem(Budget budget, BigDecimal used, PeriodResolver.Period window,
+                                           Map<UUID, String> categoryNames) {
         BigDecimal remaining = budget.getAmountLimit().subtract(used);
         double percentage = percentageOf(budget, used);
 

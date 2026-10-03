@@ -151,9 +151,12 @@ public class TransactionService {
         LocalDate start = window.startDate();
         LocalDate endExclusive = window.endDate().plusDays(1);
 
-        BigDecimal income = transactionRepository.sumAmountByTypeInWindow(userId, TransactionType.INCOME, start, endExclusive);
-        BigDecimal expense = transactionRepository.sumAmountByTypeInWindow(userId, TransactionType.EXPENSE, start, endExclusive);
-        long count = transactionRepository.countInWindow(userId, start, endExclusive);
+        // one scan for all three totals via conditional aggregation
+        Object[] totals = transactionRepository.summaryTotals(
+                userId, TransactionType.INCOME, TransactionType.EXPENSE, start, endExclusive).get(0);
+        BigDecimal income = (BigDecimal) totals[0];
+        BigDecimal expense = (BigDecimal) totals[1];
+        long count = (Long) totals[2];
 
         return new TransactionDtos.SummaryResponse(income, expense, income.subtract(expense), count, window);
     }

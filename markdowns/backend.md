@@ -438,7 +438,7 @@ Backend-owned rules layered on top of that model:
 | GET | `/accounts` | List active accounts with computed balances |
 | POST | `/accounts` | Create account (`name`, `accountType`, `openingBalance`, credit fields if card) |
 | GET | `/accounts/{id}?periodType&date` | Detail: balance, card metrics, money in/out for window, balance trend, recent transactions |
-| PUT | `/accounts/{id}` | Update name/limits/active |
+| PUT | `/accounts/{id}` | Update name/limits/active; `balance` true-up re-anchors openingBalance |
 | DELETE | `/accounts/{id}` | Per deletion policy (Section 7.7) |
 
 Balance trend = closing balance at the end of each bucket in the window

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { errorMessage, useAccounts, useCreateAccount } from '../lib/queries'
+import { errorMessage, useAccounts, useCreateAccount, useUpdateAccountById } from '../lib/queries'
 import { formatINR } from '../lib/format'
-import type { AccountType } from '../lib/types'
+import type { Account, AccountUpdateBody, AccountType } from '../lib/types'
 import {
   Badge,
   Card,
@@ -27,7 +27,9 @@ export const TYPE_LABELS: Record<AccountType, string> = {
 export function AccountsPage() {
   const { data: accounts = [], isLoading } = useAccounts()
   const createAccount = useCreateAccount()
+  const updateAccount = useUpdateAccountById()
   const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<Account | null>(null)
 
   const netPosition = accounts.reduce((sum, account) => sum + account.balance, 0)
 
@@ -54,22 +56,35 @@ export function AccountsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.map((account) => (
-            <Link key={account.id} to={`/accounts/${account.id}`} className="block">
-              <Card className="transition-colors hover:border-slate-300 hover:shadow-md dark:hover:border-slate-600">
-                <div className="flex items-center justify-between">
-                  <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{account.name}</span>
-                  <Badge tone={account.accountType === 'CREDIT_CARD' ? 'red' : 'blue'}>{TYPE_LABELS[account.accountType]}</Badge>
-                </div>
-                <div className={cx('mt-3 text-2xl font-semibold tabular-nums', account.balance < 0 ? 'text-expense' : 'text-slate-900 dark:text-slate-100')}>
-                  {formatINR(account.balance)}
-                </div>
-                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {account.accountType === 'CREDIT_CARD' && account.creditLimit !== null
-                    ? `${formatINR(account.creditLimit - Math.max(0, -account.balance))} credit available`
-                    : `Opened with ${formatINR(account.openingBalance)}`}
-                </div>
-              </Card>
-            </Link>
+            <div key={account.id} className="relative">
+              <Link to={`/accounts/${account.id}`} className="block">
+                <Card className="transition-colors hover:border-slate-300 hover:shadow-md dark:hover:border-slate-600">
+                  <div className="flex items-center justify-between">
+                    <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{account.name}</span>
+                    <Badge tone={account.accountType === 'CREDIT_CARD' ? 'red' : 'blue'}>{TYPE_LABELS[account.accountType]}</Badge>
+                  </div>
+                  <div className={cx('mt-3 text-2xl font-semibold tabular-nums', account.balance < 0 ? 'text-expense' : 'text-slate-900 dark:text-slate-100')}>
+                    {formatINR(account.balance)}
+                  </div>
+                  <div className="mt-1 pr-14 text-xs text-slate-500 dark:text-slate-400">
+                    {account.accountType === 'CREDIT_CARD' && account.creditLimit !== null
+                      ? `${formatINR(account.creditLimit - Math.max(0, -account.balance))} credit available`
+                      : `Opened with ${formatINR(account.openingBalance)}`}
+                  </div>
+                </Card>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setEditing(account)}
+                className="absolute right-3 bottom-3 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  <path d="m15 5 4 4" />
+                </svg>
+                Edit
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -81,6 +96,26 @@ export function AccountsPage() {
         submitting={createAccount.isPending}
         submitLabel="Add account"
       />
+
+      {editing && (
+        <AccountModal
+          key={editing.id}
+          open
+          onClose={() => setEditing(null)}
+          onSubmit={(body: AccountUpdateBody) => updateAccount.mutateAsync({ id: editing.id, body })}
+          submitting={updateAccount.isPending}
+          submitLabel="Save changes"
+          initial={{
+            name: editing.name,
+            accountType: editing.accountType,
+            balance: editing.balance,
+            creditLimit: editing.creditLimit,
+            billingDay: editing.billingDay,
+            paymentDueDay: editing.paymentDueDay,
+          }}
+          isCard={editing.accountType === 'CREDIT_CARD'}
+        />
+      )}
     </div>
   )
 }
@@ -104,6 +139,7 @@ export function AccountModal({
   initial?: {
     name: string
     accountType: AccountType
+    balance: number
     creditLimit: number | null
     billingDay: number | null
     paymentDueDay: number | null
@@ -114,6 +150,7 @@ export function AccountModal({
   const [name, setName] = useState(initial?.name ?? '')
   const [accountType, setAccountType] = useState<AccountType>(initial?.accountType ?? 'BANK')
   const [openingBalance, setOpeningBalance] = useState('0')
+  const [balance, setBalance] = useState(initial?.balance != null ? String(initial.balance) : '')
   const [creditLimit, setCreditLimit] = useState(initial?.creditLimit != null ? String(initial.creditLimit) : '')
   const [billingDay, setBillingDay] = useState(initial?.billingDay != null ? String(initial.billingDay) : '')
   const [paymentDueDay, setPaymentDueDay] = useState(initial?.paymentDueDay != null ? String(initial.paymentDueDay) : '')
@@ -128,6 +165,7 @@ export function AccountModal({
       if (initial) {
         await onSubmit({
           name,
+          balance: balance === '' ? undefined : Number(balance),
           ...(isCard
             ? {
                 creditLimit: Number(creditLimit),
@@ -166,6 +204,15 @@ export function AccountModal({
         <Field label="Name">
           <input required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} placeholder="e.g. HDFC Savings" />
         </Field>
+
+        {typeLocked && (
+          <Field label="Current balance (₹)">
+            <input type="number" step="0.01" value={balance} onChange={(event) => setBalance(event.target.value)} className={cx(inputClass, 'tabular-nums')} />
+            <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+              Balances are calculated from your transactions — saving this re-tunes the opening balance so the balance matches exactly.
+            </span>
+          </Field>
+        )}
 
         {!typeLocked && (
           <Field label="Type">
