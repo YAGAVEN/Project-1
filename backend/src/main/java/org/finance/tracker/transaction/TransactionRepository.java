@@ -22,20 +22,67 @@ import java.util.UUID;
 public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
         JpaSpecificationExecutor<Transaction> {
 
-    /** backend.md §6.3 — income and expense totals; TRANSFER and LOAN_* never enter these. */
+    /** One scan for income + expense + count — conditional aggregation (backend.md §6.3). */
     @Query("""
-            select coalesce(sum(t.amount), 0) from Transaction t
-            where t.userId = :userId and t.transactionType = :type
-              and t.transactionDate >= :start and t.transactionDate < :end
-            """)
-    BigDecimal sumAmountByTypeInWindow(@Param("userId") UUID userId, @Param("type") TransactionType type,
-                                       @Param("start") LocalDate start, @Param("end") LocalDate end);
-
-    @Query("""
-            select count(t) from Transaction t
+            select coalesce(sum(case when t.transactionType = :income then t.amount else 0 end), 0),
+                   coalesce(sum(case when t.transactionType = :expense then t.amount else 0 end), 0),
+                   count(t)
+            from Transaction t
             where t.userId = :userId and t.transactionDate >= :start and t.transactionDate < :end
             """)
-    long countInWindow(@Param("userId") UUID userId, @Param("start") LocalDate start, @Param("end") LocalDate end);
+    List<Object[]> summaryTotals(@Param("userId") UUID userId,
+                                 @Param("income") TransactionType income,
+                                 @Param("expense") TransactionType expense,
+                                 @Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /** All-history grouped inflow per receiving account — one Σ for many accounts. */
+    @Query("""
+            select t.toAccountId, sum(t.amount) from Transaction t
+            where t.toAccountId in :ids
+            group by t.toAccountId
+            """)
+    List<Object[]> inflowByAccounts(@Param("ids") Collection<UUID> ids);
+
+    /** All-history grouped outflow per sending account — pairs with inflowByAccounts for net flow. */
+    @Query("""
+            select t.fromAccountId, sum(t.amount) from Transaction t
+            where t.fromAccountId in :ids
+            group by t.fromAccountId
+            """)
+    List<Object[]> outflowByAccounts(@Param("ids") Collection<UUID> ids);
+
+    /** Grouped Σ per sending account and type — card monthSpend for every card in one query. */
+    @Query("""
+            select t.fromAccountId, sum(t.amount) from Transaction t
+            where t.userId = :userId and t.transactionType = :type
+              and t.transactionDate >= :start and t.transactionDate < :end
+            group by t.fromAccountId
+            """)
+    List<Object[]> totalsByFromAccount(@Param("userId") UUID userId, @Param("type") TransactionType type,
+                                       @Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /** Grouped Σ per category over a set of categories — N budgets share one query per window. */
+    @Query("""
+            select t.categoryId, sum(t.amount) from Transaction t
+            where t.userId = :userId and t.transactionType = :type and t.categoryId in :categoryIds
+              and t.transactionDate >= :start and t.transactionDate < :end
+            group by t.categoryId
+            """)
+    List<Object[]> totalsByCategoryIdsInWindow(@Param("userId") UUID userId, @Param("type") TransactionType type,
+                                               @Param("categoryIds") Collection<UUID> categoryIds,
+                                               @Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /** Daily Σ for one category — history windows re-aggregate in Java from one query. */
+    @Query("""
+            select t.transactionDate, sum(t.amount) from Transaction t
+            where t.userId = :userId and t.transactionType = :type and t.categoryId = :categoryId
+              and t.transactionDate >= :start and t.transactionDate < :end
+            group by t.transactionDate
+            order by t.transactionDate
+            """)
+    List<Object[]> dailyTotalsByCategory(@Param("userId") UUID userId, @Param("type") TransactionType type,
+                                         @Param("categoryId") UUID categoryId,
+                                         @Param("start") LocalDate start, @Param("end") LocalDate end);
 
     /** backend.md §6.2 — money in minus money out over all history; one rule for every account type. */
     @Query("""
@@ -126,15 +173,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     BigDecimal sumByCategoryInWindow(@Param("userId") UUID userId, @Param("type") TransactionType type,
                                      @Param("categoryId") UUID categoryId,
                                      @Param("start") LocalDate start, @Param("end") LocalDate end);
-
-    /** backend.md §6.4 — monthSpend for a credit card (Σ from this card only). */
-    @Query("""
-            select coalesce(sum(t.amount), 0) from Transaction t
-            where t.fromAccountId = :accountId and t.transactionType = :type
-              and t.transactionDate >= :start and t.transactionDate < :end
-            """)
-    BigDecimal sumByFromAccountInWindow(@Param("accountId") UUID accountId, @Param("type") TransactionType type,
-                                        @Param("start") LocalDate start, @Param("end") LocalDate end);
 
     /** Dashboard §8.9 — expense per category in a window (donut + comparison). */
     @Query("""

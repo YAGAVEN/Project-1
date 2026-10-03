@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -39,8 +40,11 @@ public class AccountService {
 
     @Transactional(readOnly = true)
     public List<AccountDtos.AccountResponse> list(UUID userId) {
-        return accountRepository.findByUserIdAndIsActiveTrueOrderByNameAsc(userId).stream()
-                .map(account -> toResponse(account, balanceOf(account)))
+        List<Account> accounts = accountRepository.findByUserIdAndIsActiveTrueOrderByNameAsc(userId);
+        Map<UUID, BigDecimal> netFlow = netFlowByAccount(accounts);
+        return accounts.stream()
+                .map(account -> toResponse(account,
+                        account.getOpeningBalance().add(netFlow.getOrDefault(account.getId(), BigDecimal.ZERO))))
                 .toList();
     }
 
@@ -111,6 +115,13 @@ public class AccountService {
         if (request.name() != null) {
             account.setName(request.name());
         }
+        if (request.balance() != null) {
+            // Balances are derived (backend.md §6.2), so a manual correction
+            // re-anchors the opening balance: opening' = desired − Σ(in) − Σ(out).
+            // Rounded to paise so the recomputed balance lands exactly on the typed value.
+            BigDecimal netFlow = transactionRepository.netFlow(account.getId());
+            account.setOpeningBalance(request.balance().subtract(netFlow).setScale(2, RoundingMode.HALF_UP));
+        }
         if (account.getAccountType() == AccountType.CREDIT_CARD) {
             if (request.creditLimit() != null) {
                 account.setCreditLimit(request.creditLimit());
@@ -153,6 +164,25 @@ public class AccountService {
     /** backend.md §6.2 — opening + Σ(in) − Σ(out); one formula for every account type. */
     public BigDecimal currentBalance(Account account) {
         return balanceOf(account);
+    }
+
+    /**
+     * Grouped net flow for many accounts — one Σ query per side replaces one
+     * per-account scan (list + dashboard both fan out through here).
+     */
+    public Map<UUID, BigDecimal> netFlowByAccount(List<Account> accounts) {
+        if (accounts.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> ids = accounts.stream().map(Account::getId).toList();
+        Map<UUID, BigDecimal> flow = new HashMap<>();
+        for (Object[] row : transactionRepository.inflowByAccounts(ids)) {
+            flow.merge((UUID) row[0], (BigDecimal) row[1], BigDecimal::add);
+        }
+        for (Object[] row : transactionRepository.outflowByAccounts(ids)) {
+            flow.merge((UUID) row[0], ((BigDecimal) row[1]).negate(), BigDecimal::add);
+        }
+        return flow;
     }
 
     private Account findOwned(UUID userId, UUID accountId) {

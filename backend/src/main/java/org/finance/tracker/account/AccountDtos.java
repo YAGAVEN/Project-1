@@ -36,6 +36,8 @@ public final class AccountDtos {
     /** PATCH-style PUT: null fields mean "leave unchanged" (same as ProfileService). */
     public record UpdateAccountRequest(
             @Size(max = 120, message = "Name must be at most 120 characters") String name,
+            /** True-up: the desired current balance; the service re-anchors openingBalance to hit it. */
+            @Digits(integer = 12, fraction = 2) BigDecimal balance,
             @Digits(integer = 12, fraction = 2) BigDecimal creditLimit,
             @Min(1) @Max(31) Short billingDay,
             @Min(1) @Max(31) Short paymentDueDay,

@@ -160,6 +160,7 @@ export function AccountDetailPage() {
         initial={{
           name: account.name,
           accountType: account.accountType,
+          balance: account.balance,
           creditLimit: account.creditLimit,
           billingDay: account.billingDay,
           paymentDueDay: account.paymentDueDay,

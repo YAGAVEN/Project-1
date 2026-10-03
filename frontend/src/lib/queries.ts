@@ -121,6 +121,13 @@ export function useUpdateAccount(id: string) {
   return useInvalidatingMutation((body: AccountUpdateBody) => put<Account>(`/accounts/${id}`, body))
 }
 
+/** The list page edits any account — the id arrives per call (same as categories). */
+export function useUpdateAccountById() {
+  return useInvalidatingMutation(({ id, body }: { id: string; body: AccountUpdateBody }) =>
+    put<Account>(`/accounts/${id}`, body),
+  )
+}
+
 export function useDeleteAccount(id: string) {
   return useInvalidatingMutation(() => api.delete(`/accounts/${id}`))
 }
