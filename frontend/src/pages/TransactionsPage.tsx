@@ -193,6 +193,7 @@ function TransactionRow({ txn }: { txn: Transaction }) {
         {txn.categoryName && txn.description && <span className="hidden truncate text-slate-400 sm:inline dark:text-slate-500">{txn.categoryName}</span>}
         {loanType && <TypeBadge transactionType={txn.transactionType} />}
         {txn.transactionType === 'TRANSFER' && <Badge tone="blue">Transfer</Badge>}
+        {txn.pending && <Badge tone="amber">Pending</Badge>}
       </span>
       <span className="flex shrink-0 items-center gap-3">
         <span className="hidden text-xs text-slate-400 md:inline dark:text-slate-500">{accountLine}</span>

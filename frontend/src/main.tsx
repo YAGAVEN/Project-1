@@ -1,14 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App'
 import { AuthProvider } from './auth/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { PersistGate } from './components/PersistGate'
+import { queryClient } from './lib/queryClient'
 import { ThemeProvider } from './theme/ThemeContext'
-
-const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -16,9 +16,11 @@ createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
+            <PersistGate>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </PersistGate>
           </AuthProvider>
         </QueryClientProvider>
       </ThemeProvider>

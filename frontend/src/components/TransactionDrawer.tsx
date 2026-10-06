@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { errorMessage, useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction } from '../lib/queries'
+import { errorMessage, removePendingTransaction, updatePendingTransaction, useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction } from '../lib/queries'
 import { todayISO } from '../lib/format'
 import type { Transaction, TransactionBody, TransactionType } from '../lib/types'
 import { Badge, Field, Modal, TypeBadge, cx, inputClass, primaryButtonClass, secondaryButtonClass, dangerButtonClass } from './ui'
@@ -160,6 +160,9 @@ function TransactionDrawer({
     try {
       if (mode === 'create') {
         await createTxn.mutateAsync({ ...body, transactionType: form.transactionType })
+      } else if (mode === 'edit' && transaction && transaction.pending) {
+        // Not synced yet — the edit stays on-device (outbox + optimistic cache).
+        updatePendingTransaction(transaction.id, { ...body, transactionType: form.transactionType })
       } else if (mode === 'edit' && transaction) {
         // type is immutable (§12) — it is not part of the update payload
         await updateTxn.mutateAsync(body)
@@ -173,7 +176,12 @@ function TransactionDrawer({
   async function remove() {
     if (!transaction) return
     try {
-      await deleteTxn.mutateAsync()
+      if (transaction.pending) {
+        // Still queued on-device — nothing to delete on the server.
+        removePendingTransaction(transaction.id)
+      } else {
+        await deleteTxn.mutateAsync()
+      }
       onClose()
     } catch (err) {
       setError(errorMessage(err))
@@ -213,6 +221,12 @@ function TransactionDrawer({
               <TypeBadge transactionType={form.transactionType} />
               <span>type is immutable</span>
             </div>
+          )}
+
+          {transaction?.pending && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+              Not synced yet — saved on this device; changes apply locally until the server is back.
+            </p>
           )}
 
           <Field label="Amount (₹)">

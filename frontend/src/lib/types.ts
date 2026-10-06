@@ -82,6 +82,8 @@ export interface Transaction {
   description: string | null
   transactionDate: string
   transactionTime: string | null
+  /** Set on optimistic outbox rows — not synced to the server yet. */
+  pending?: boolean
 }
 
 export interface PageResponse<T> {
@@ -340,6 +342,13 @@ export interface TransactionBody {
   description?: string | null
   transactionDate: string
   transactionTime?: string | null
+}
+
+/** A quick add queued in localStorage while the backend is unreachable. */
+export interface OutboxEntry {
+  clientId: string
+  body: TransactionBody
+  queuedAt: string
 }
 
 export interface CategoryBody {
