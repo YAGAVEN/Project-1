@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
+import { queryClient } from './queryClient'
+import { enqueueTransaction, removeQueuedTransaction, updateQueuedTransaction } from './outbox'
 import type {
   Account,
   AccountBody,
@@ -164,8 +166,94 @@ export function fetchTransaction(id: string) {
   return get<Transaction>(`/transactions/${id}`)
 }
 
+/** True when a request failed because the backend is unreachable (cold start). */
+function isUnreachable(error: unknown): boolean {
+  return axiosish(error) && error.response === undefined
+}
+
+/**
+ * Optimistic outbox row for a quick add made while the backend is asleep.
+ * Display names come from the cached accounts/categories so the row renders
+ * exactly like a synced one until the flusher replaces it with real data.
+ */
+function pendingRowFrom(clientId: string, body: TransactionBody): Transaction {
+  const accounts = queryClient.getQueryData<Account[]>(['accounts']) ?? []
+  const categories = queryClient.getQueryData<Category[]>(['categories', false]) ?? []
+  return {
+    id: clientId,
+    transactionType: body.transactionType ?? 'EXPENSE',
+    amount: body.amount,
+    fromAccountId: body.fromAccountId ?? null,
+    fromAccountName: accounts.find((account) => account.id === body.fromAccountId)?.name ?? null,
+    fromAccountBalance: null,
+    toAccountId: body.toAccountId ?? null,
+    toAccountName: accounts.find((account) => account.id === body.toAccountId)?.name ?? null,
+    toAccountBalance: null,
+    categoryId: body.categoryId ?? null,
+    categoryName: categories.find((category) => category.id === body.categoryId)?.name ?? null,
+    description: body.description ?? null,
+    transactionDate: body.transactionDate,
+    transactionTime: body.transactionTime ?? null,
+    pending: true,
+  }
+}
+
+/** Applies a change to every cached transactions list (summaries share the key prefix and are skipped). */
+function patchTransactionLists(patch: (data: PageResponse<Transaction>) => PageResponse<Transaction>) {
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: ['transactions'] })) {
+    const data = query.state.data as PageResponse<Transaction> | undefined
+    if (!data || !Array.isArray(data.content)) continue
+    queryClient.setQueryData(query.queryKey, patch(data))
+  }
+}
+
+/** Cold-start path for quick adds — queue it on-device, then show it optimistically. */
+function queuePendingTransaction(body: TransactionBody): Transaction {
+  const clientId = crypto.randomUUID()
+  enqueueTransaction(clientId, body)
+  const row = pendingRowFrom(clientId, body)
+  patchTransactionLists((data) => ({
+    ...data,
+    content: [row, ...data.content],
+    totalElements: data.totalElements + 1,
+  }))
+  return row
+}
+
+/** Edits to a not-yet-synced row stay on-device: update the queue + cache. */
+export function updatePendingTransaction(clientId: string, body: TransactionBody) {
+  updateQueuedTransaction(clientId, body)
+  const row = pendingRowFrom(clientId, body)
+  patchTransactionLists((data) => ({
+    ...data,
+    content: data.content.map((txn) => (txn.id === clientId ? row : txn)),
+  }))
+}
+
+/** Deleting a not-yet-synced row just drops it from the queue + cache. */
+export function removePendingTransaction(clientId: string) {
+  removeQueuedTransaction(clientId)
+  patchTransactionLists((data) => ({
+    ...data,
+    content: data.content.filter((txn) => txn.id !== clientId),
+    totalElements: Math.max(0, data.totalElements - 1),
+  }))
+}
+
 export function useCreateTransaction() {
-  return useInvalidatingMutation((body: TransactionBody) => post<Transaction>('/transactions', body))
+  return useMutation({
+    mutationFn: async (body: TransactionBody) => {
+      try {
+        const created = await post<Transaction>('/transactions', body)
+        void queryClient.invalidateQueries()
+        return created
+      } catch (error) {
+        if (!isUnreachable(error)) throw error
+        // Backend asleep — keep the add on-device; the outbox syncs it later.
+        return queuePendingTransaction(body)
+      }
+    },
+  })
 }
 
 export function useUpdateTransaction(id: string) {
