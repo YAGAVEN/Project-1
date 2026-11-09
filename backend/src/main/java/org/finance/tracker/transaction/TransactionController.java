@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,8 +47,11 @@ public class TransactionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    TransactionDtos.TransactionResponse create(@Valid @RequestBody TransactionDtos.CreateTransactionRequest request) {
-        return transactionService.create(currentUser.requireUserId(), request);
+    TransactionDtos.TransactionResponse create(
+            @Valid @RequestBody TransactionDtos.CreateTransactionRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        // Audit Phase 2: optional key — absent behaves exactly as before.
+        return transactionService.createIdempotent(currentUser.requireUserId(), idempotencyKey, request);
     }
 
     @GetMapping("/summary")

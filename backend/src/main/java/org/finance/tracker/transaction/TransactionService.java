@@ -15,6 +15,11 @@ import org.finance.tracker.common.NotFoundException;
 import org.finance.tracker.common.PageResponse;
 import org.finance.tracker.common.PeriodResolver;
 import org.finance.tracker.common.PeriodType;
+import org.finance.tracker.goal.GoalContributionRepository;
+import org.finance.tracker.idempotency.IdempotencyKey;
+import org.finance.tracker.idempotency.IdempotencyService;
+import org.finance.tracker.loan.LoanPaymentRepository;
+import org.finance.tracker.loan.LoanRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -28,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -49,6 +55,12 @@ public class TransactionService {
     private final AccountRepository accountRepository;
     private final CategoryService categoryService;
     private final CategoryRepository categoryRepository;
+    private final IdempotencyService idempotencyService;
+    // Repository-level only (never the owning services) — keeps the dependency
+    // graph acyclic while the generic ledger protects loan/goal invariants.
+    private final LoanRepository loanRepository;
+    private final LoanPaymentRepository loanPaymentRepository;
+    private final GoalContributionRepository goalContributionRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<TransactionDtos.TransactionResponse> list(UUID userId, TransactionType type,
@@ -68,6 +80,31 @@ public class TransactionService {
                 .map(t -> toResponse(t, accounts, categories))
                 .toList();
         return new PageResponse<>(content, result.getNumber(), result.getSize(), result.getTotalElements());
+    }
+
+    /**
+     * backend.md §9.3 — insert + balance recompute happen in one transaction.
+     * With an Idempotency-Key present, the key claim, the insert, and the
+     * response capture commit atomically: a repeated key replays the original
+     * response instead of creating a second record (audit Phase 2, H-3), and
+     * a crashed attempt leaves no claim behind.
+     */
+    @Transactional
+    public TransactionDtos.TransactionResponse createIdempotent(UUID userId, String idempotencyKey,
+                                                                TransactionDtos.CreateTransactionRequest request) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return create(userId, request);
+        }
+        String requestHash = idempotencyService.hashOf(request);
+        Optional<IdempotencyKey> existing =
+                idempotencyService.findReusableClaim(userId, idempotencyKey, requestHash);
+        if (existing.isPresent()) {
+            return idempotencyService.readResponse(existing.get(), TransactionDtos.TransactionResponse.class);
+        }
+        IdempotencyKey claim = idempotencyService.claim(userId, idempotencyKey, requestHash);
+        TransactionDtos.TransactionResponse response = create(userId, request);
+        idempotencyService.complete(claim, 201, response);
+        return response;
     }
 
     /** backend.md §9.3 — insert + balance recompute happen in one transaction. */
@@ -107,6 +144,7 @@ public class TransactionService {
     public TransactionDtos.TransactionResponse update(UUID userId, UUID transactionId,
                                                       TransactionDtos.UpdateTransactionRequest request) {
         Transaction txn = findOwned(userId, transactionId);
+        assertNotLinked(txn.getId());
         if (request.transactionType() != null && request.transactionType() != txn.getTransactionType()) {
             throw new BadRequestException(
                     "transactionType is immutable — delete this transaction and create a new one");
@@ -141,7 +179,31 @@ public class TransactionService {
     @Transactional
     public void delete(UUID userId, UUID transactionId) {
         Transaction txn = findOwned(userId, transactionId);
+        assertNotLinked(txn.getId());
         transactionRepository.delete(txn);
+    }
+
+    /**
+     * Audit Phase 2 (H-4): transactions that back a loan, a repayment, or a
+     * goal contribution are owned by those modules — editing their amount or
+     * accounts through the generic ledger would desync `loans.original_amount`
+     * / `goal_contributions.amount` from the money movement, and deleting them
+     * here used to die on the FK as an opaque 409. Route users to the owning
+     * module, whose own endpoints keep the pairs atomic.
+     */
+    private void assertNotLinked(UUID transactionId) {
+        if (loanRepository.existsByTransactionId(transactionId)) {
+            throw new ConflictException(
+                    "This transaction records money lent or borrowed — delete the loan from the Loans page, which removes it atomically");
+        }
+        if (loanPaymentRepository.existsByTransactionId(transactionId)) {
+            throw new ConflictException(
+                    "This transaction is a loan repayment — remove it from the loan's payment timeline on the Loans page");
+        }
+        if (goalContributionRepository.existsByTransactionId(transactionId)) {
+            throw new ConflictException(
+                    "This transaction is linked to a savings goal contribution — remove the contribution from the goal first");
+        }
     }
 
     /** backend.md §6.3 — only INCOME and EXPENSE enter the totals; TRANSFER/LOAN_* never do. */
@@ -156,7 +218,9 @@ public class TransactionService {
                 userId, TransactionType.INCOME, TransactionType.EXPENSE, start, endExclusive).get(0);
         BigDecimal income = (BigDecimal) totals[0];
         BigDecimal expense = (BigDecimal) totals[1];
-        long count = (Long) totals[2];
+        // count() now means income+expense rows only — transfers and loan
+        // movements are money positions, not earnings or spend (audit Phase 2).
+        long count = ((Number) totals[2]).longValue();
 
         return new TransactionDtos.SummaryResponse(income, expense, income.subtract(expense), count, window);
     }

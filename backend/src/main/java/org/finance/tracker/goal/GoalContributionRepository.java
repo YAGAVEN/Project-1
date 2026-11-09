@@ -21,6 +21,9 @@ public interface GoalContributionRepository extends JpaRepository<GoalContributi
 
     boolean existsByGoalId(UUID goalId);
 
+    /** Audit Phase 2 — contribution-linked transfers are owned by the goal endpoints. */
+    boolean existsByTransactionId(UUID transactionId);
+
     long countByGoalId(UUID goalId);
 
     @Query("""

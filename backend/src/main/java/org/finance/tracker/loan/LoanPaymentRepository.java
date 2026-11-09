@@ -20,6 +20,9 @@ public interface LoanPaymentRepository extends JpaRepository<LoanPayment, UUID> 
 
     boolean existsByLoanId(UUID loanId);
 
+    /** Audit Phase 2 — repayments are owned by the loan endpoints, not the generic ledger. */
+    boolean existsByTransactionId(UUID transactionId);
+
     @Query("""
             select coalesce(sum(p.amount), 0) from LoanPayment p where p.loanId in :loanIds
             """)

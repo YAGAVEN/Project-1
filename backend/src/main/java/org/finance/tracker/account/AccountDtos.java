@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.finance.tracker.transaction.TransactionType;
 
@@ -28,7 +29,7 @@ public final class AccountDtos {
             @NotNull AccountType accountType,
             @NotNull @Digits(integer = 12, fraction = 2) BigDecimal openingBalance,
             /** Required iff accountType is CREDIT_CARD — enforced in the service. */
-            @Digits(integer = 12, fraction = 2) BigDecimal creditLimit,
+            @Positive @Digits(integer = 12, fraction = 2) BigDecimal creditLimit,
             @Min(1) @Max(31) Short billingDay,
             @Min(1) @Max(31) Short paymentDueDay) {
     }
@@ -38,7 +39,7 @@ public final class AccountDtos {
             @Size(max = 120, message = "Name must be at most 120 characters") String name,
             /** True-up: the desired current balance; the service re-anchors openingBalance to hit it. */
             @Digits(integer = 12, fraction = 2) BigDecimal balance,
-            @Digits(integer = 12, fraction = 2) BigDecimal creditLimit,
+            @Positive @Digits(integer = 12, fraction = 2) BigDecimal creditLimit,
             @Min(1) @Max(31) Short billingDay,
             @Min(1) @Max(31) Short paymentDueDay,
             Boolean isActive) {

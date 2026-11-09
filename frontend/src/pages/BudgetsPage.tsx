@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { errorMessage, useBudgets, useCategories, useCreateBudget } from '../lib/queries'
-import { formatINR, todayISO } from '../lib/format'
-import type { BudgetPeriodType } from '../lib/types'
+import { formatINR, shiftAnchor, todayISO } from '../lib/format'
+import type { BudgetPeriodType, BudgetUsage } from '../lib/types'
 import {
   Card,
   EmptyState,
@@ -26,10 +26,24 @@ function monthLabel(anchor: string): string {
   return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
 }
 
-function shiftMonth(anchor: string, direction: 1 | -1): string {
-  const d = new Date(`${anchor}T00:00:00`)
-  d.setMonth(d.getMonth() + direction)
-  return d.toISOString().slice(0, 10)
+const PERIOD_LABELS: Record<BudgetPeriodType, string> = { WEEKLY: 'Weekly', MONTHLY: 'Monthly', YEARLY: 'Yearly' }
+
+/**
+ * One grand total across period types is a lie (₹2,000 weekly + ₹8,000 monthly
+ * is not ₹10,000 for the month), so totals are grouped per period type
+ * (audit E-9). With a single period type this renders exactly one card.
+ */
+function totalsByPeriod(budgets: BudgetUsage[]): Array<{ periodType: BudgetPeriodType; budget: number; spent: number }> {
+  const byPeriod = new Map<BudgetPeriodType, { budget: number; spent: number }>()
+  for (const budget of budgets) {
+    const totals = byPeriod.get(budget.periodType) ?? { budget: 0, spent: 0 }
+    totals.budget += budget.amountLimit
+    totals.spent += budget.used
+    byPeriod.set(budget.periodType, totals)
+  }
+  return [...byPeriod.entries()]
+    .map(([periodType, totals]) => ({ periodType, ...totals }))
+    .sort((a, b) => b.budget - a.budget)
 }
 
 export function BudgetsPage() {
@@ -43,9 +57,9 @@ export function BudgetsPage() {
       <PageHeader title="Budgets">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-1 py-0.5 dark:border-slate-800 dark:bg-slate-900">
-            <button type="button" aria-label="Previous month" onClick={() => setAnchor(shiftMonth(anchor, -1))} className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">‹</button>
+            <button type="button" aria-label="Previous month" onClick={() => setAnchor(shiftAnchor('MONTH', anchor, -1))} className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">‹</button>
             <span className="min-w-36 px-2 text-center text-sm font-medium text-slate-700 dark:text-slate-300">{monthLabel(anchor)}</span>
-            <button type="button" aria-label="Next month" onClick={() => setAnchor(shiftMonth(anchor, 1))} className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">›</button>
+            <button type="button" aria-label="Next month" onClick={() => setAnchor(shiftAnchor('MONTH', anchor, 1))} className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">›</button>
           </div>
           <button type="button" onClick={() => setAnchor(todayISO())} className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">This month</button>
           <button type="button" onClick={() => setModalOpen(true)} className={primaryButtonClass}>+ New Budget</button>
@@ -62,13 +76,14 @@ export function BudgetsPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard label="Total Budget" value={formatINR(data_.totals.totalBudget)} />
-            <StatCard label="Total Spent" value={formatINR(data_.totals.totalSpent)} tone="negative" />
-            <StatCard
-              label="Total Remaining"
-              value={formatINR(data_.totals.totalRemaining)}
-              tone={data_.totals.totalRemaining >= 0 ? 'positive' : 'negative'}
-            />
+            {totalsByPeriod(data_.budgets).map(({ periodType, budget, spent }) => (
+              <StatCard
+                key={periodType}
+                label={`${PERIOD_LABELS[periodType]} total (${periodType.toLowerCase()})`}
+                value={`${formatINR(spent)} of ${formatINR(budget)}`}
+                tone={spent > budget ? 'negative' : 'default'}
+              />
+            ))}
           </div>
 
           {data_.budgets.length === 0 ? (

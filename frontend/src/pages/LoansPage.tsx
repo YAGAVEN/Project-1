@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { errorMessage, useAccounts, useContacts, useCreateContact, useCreateLoan, useLoans } from '../lib/queries'
-import { formatINR } from '../lib/format'
+import { formatINR, todayISO } from '../lib/format'
 import type { LoanType } from '../lib/types'
 import {
   Badge,
@@ -119,7 +119,7 @@ function RecordLoanModal({ open, onClose }: { open: boolean; onClose: () => void
   const [contactId, setContactId] = useState('')
   const [newContactName, setNewContactName] = useState('')
   const [amount, setAmount] = useState('')
-  const [loanDate, setLoanDate] = useState(new Date().toISOString().slice(0, 10))
+  const [loanDate, setLoanDate] = useState(todayISO())
   const [accountId, setAccountId] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)

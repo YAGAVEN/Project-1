@@ -65,8 +65,10 @@ public class DashboardService {
         SeriesResult series = buildSeries(userId, windowType, window);
         BigDecimal income = series.income();
         BigDecimal expense = series.expense();
-        BigDecimal totalBalance = accounts.stream()
-                .map(AccountDtos.AccountResponse::balance)
+        // Net worth counts every account (audit Phase 2): a deactivated account
+        // with a non-zero balance is still the user's money — the widgets below
+        // stay active-only, the headline total must not silently shrink.
+        BigDecimal totalBalance = accountService.balanceByAccountIncludingInactive(userId).values().stream()
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<BudgetDtos.UsageItem> budgetUsage = budgetService.listUsage(userId, anchor);

@@ -140,10 +140,15 @@ public class LoanService {
 
     // ---- repayments (§9.3 atomic paths) -------------------------------------
 
-    /** Repayment transaction + payment row together; status flips to PAID at zero (§6.6). */
+    /**
+     * Repayment transaction + payment row together; status flips to PAID at zero (§6.6).
+     * The loan row is locked FOR UPDATE first (audit Phase 2, H-5): two
+     * concurrent repayments now serialize, so each sees the other's payment in
+     * `outstandingOf` and the overpayment check can never pass both.
+     */
     @Transactional
     public LoanDtos.LoanResponse recordPayment(UUID userId, UUID loanId, LoanDtos.CreatePaymentRequest request) {
-        Loan loan = findOwned(userId, loanId);
+        Loan loan = findOwnedForUpdate(userId, loanId);
         Account account = requireAccount(userId, request.accountId());
 
         BigDecimal outstanding = outstandingOf(loan);
@@ -187,7 +192,9 @@ public class LoanService {
     /** Removes a mistaken payment + its transaction; loan status recomputed (may leave PAID). */
     @Transactional
     public void deletePayment(UUID userId, UUID loanId, UUID paymentId) {
-        Loan loan = findOwned(userId, loanId);
+        // Same lock as recordPayment — a concurrent payment/remove pair serializes
+        // so the status recompute always sees the settled payment set.
+        Loan loan = findOwnedForUpdate(userId, loanId);
         LoanPayment payment = loanPaymentRepository.findByIdAndLoanId(paymentId, loanId)
                 .orElseThrow(() -> NotFoundException.resource("Loan payment"));
 
@@ -245,6 +252,12 @@ public class LoanService {
 
     private Loan findOwned(UUID userId, UUID loanId) {
         return loanRepository.findByIdAndUserId(loanId, userId)
+                .orElseThrow(() -> NotFoundException.resource("Loan"));
+    }
+
+    /** Row-locked lookup — every path that reads outstanding then writes must hold the loan row. */
+    private Loan findOwnedForUpdate(UUID userId, UUID loanId) {
+        return loanRepository.findByIdAndUserIdForUpdate(loanId, userId)
                 .orElseThrow(() -> NotFoundException.resource("Loan"));
     }
 

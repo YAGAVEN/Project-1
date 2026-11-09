@@ -10,7 +10,13 @@ import org.finance.tracker.category.CategoryService;
 import org.finance.tracker.category.CategoryType;
 import org.finance.tracker.common.BadRequestException;
 import org.finance.tracker.common.ConflictException;
+import org.finance.tracker.goal.GoalContributionRepository;
+import org.finance.tracker.idempotency.IdempotencyKey;
+import org.finance.tracker.idempotency.IdempotencyService;
+import org.finance.tracker.loan.LoanPaymentRepository;
+import org.finance.tracker.loan.LoanRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -22,17 +28,22 @@ import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * The §9.1 per-type validation matrix at unit level — every rule the whole UI
- * depends on, no database needed.
+ * depends on, no database needed. Also covers the Phase 2 audit guard rails:
+ * Idempotency-Key create/replay and the linked-transaction protections.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -51,6 +62,14 @@ class TransactionServiceValidationTest {
     private CategoryService categoryService;
     @Mock
     private CategoryRepository categoryRepository;
+    @Mock
+    private IdempotencyService idempotencyService;
+    @Mock
+    private LoanRepository loanRepository;
+    @Mock
+    private LoanPaymentRepository loanPaymentRepository;
+    @Mock
+    private GoalContributionRepository goalContributionRepository;
 
     @InjectMocks
     private TransactionService service;
@@ -72,6 +91,7 @@ class TransactionServiceValidationTest {
             saved.setId(UUID.randomUUID());
             return saved;
         });
+        when(idempotencyService.hashOf(any())).thenReturn("hash-of-request");
     }
 
     @Test
@@ -155,6 +175,136 @@ class TransactionServiceValidationTest {
         assertThat(saved.getToAccountId()).isNull();
         assertThat(saved.getUserId()).isEqualTo(USER);
         assertThat(saved.getAmount()).isEqualByComparingTo("500.00");
+    }
+
+    // ---- Phase 2 audit guards: idempotent create + linked transactions ----
+
+    @Nested
+    class IdempotentCreate {
+
+        private TransactionDtos.CreateTransactionRequest request;
+
+        @BeforeEach
+        void allowCreate() {
+            request = expense(bank.getId(), expenseCategory.getId());
+            when(accountService.getOwnedAccount(USER, bank.getId())).thenReturn(bank);
+            when(categoryService.getOwnedCategory(USER, expenseCategory.getId())).thenReturn(expenseCategory);
+        }
+
+        @Test
+        void withoutKeyBehavesExactlyLikePlainCreate() {
+            service.createIdempotent(USER, null, request);
+            verify(idempotencyService, never()).claim(any(), anyString(), anyString());
+            verify(transactionRepository).save(any(Transaction.class));
+        }
+
+        @Test
+        void firstRequestClaimsThenCreatesThenCapturesResponse() {
+            when(idempotencyService.findReusableClaim(eq(USER), eq("key-1"), anyString()))
+                    .thenReturn(Optional.empty());
+            IdempotencyKey claim = new IdempotencyKey();
+            when(idempotencyService.claim(eq(USER), eq("key-1"), anyString())).thenReturn(claim);
+
+            service.createIdempotent(USER, "key-1", request);
+
+            verify(transactionRepository).save(any(Transaction.class));
+            verify(idempotencyService).complete(eq(claim), eq(201), any());
+        }
+
+        @Test
+        void repeatedKeyReplaysStoredResponseWithoutCreatingAgain() {
+            IdempotencyKey completed = new IdempotencyKey();
+            TransactionDtos.TransactionResponse stored = new TransactionDtos.TransactionResponse(
+                    UUID.randomUUID(), TransactionType.EXPENSE, new BigDecimal("500.00"),
+                    bank.getId(), "Bank", null, null, null, null,
+                    expenseCategory.getId(), "Food", "Lunch", TODAY, null);
+            when(idempotencyService.findReusableClaim(eq(USER), eq("key-1"), anyString()))
+                    .thenReturn(Optional.of(completed));
+            when(idempotencyService.readResponse(completed, TransactionDtos.TransactionResponse.class))
+                    .thenReturn(stored);
+
+            TransactionDtos.TransactionResponse response = service.createIdempotent(USER, "key-1", request);
+
+            assertThat(response).isSameAs(stored);
+            verify(transactionRepository, never()).save(any(Transaction.class));
+        }
+
+        @Test
+        void keyReusedWithDifferentPayloadIsRejectedByClaimLookup() {
+            when(idempotencyService.findReusableClaim(eq(USER), eq("key-1"), anyString()))
+                    .thenThrow(new ConflictException(
+                            "Idempotency-Key was already used with a different request body"));
+
+            assertThatThrownBy(() -> service.createIdempotent(USER, "key-1", request))
+                    .isInstanceOf(ConflictException.class);
+            verify(transactionRepository, never()).save(any(Transaction.class));
+        }
+    }
+
+    @Nested
+    class LinkedTransactionProtection {
+
+        private Transaction ownedTransaction() {
+            Transaction txn = new Transaction();
+            txn.setId(UUID.randomUUID());
+            txn.setUserId(USER);
+            txn.setTransactionType(TransactionType.EXPENSE);
+            txn.setAmount(new BigDecimal("500.00"));
+            return txn;
+        }
+
+        @Test
+        void updateOfLoanOriginTransactionIsRejected() {
+            Transaction txn = ownedTransaction();
+            when(transactionRepository.findByIdAndUserId(txn.getId(), USER)).thenReturn(Optional.of(txn));
+            when(loanRepository.existsByTransactionId(txn.getId())).thenReturn(true);
+
+            assertThatThrownBy(() -> service.update(USER, txn.getId(),
+                    new TransactionDtos.UpdateTransactionRequest(null, new BigDecimal("1.00"),
+                            null, null, null, null, null, null)))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("Loans page");
+        }
+
+        @Test
+        void deleteOfRepaymentTransactionIsRejectedWithLoanGuidance() {
+            Transaction txn = ownedTransaction();
+            when(transactionRepository.findByIdAndUserId(txn.getId(), USER)).thenReturn(Optional.of(txn));
+            when(loanRepository.existsByTransactionId(txn.getId())).thenReturn(false);
+            when(loanPaymentRepository.existsByTransactionId(txn.getId())).thenReturn(true);
+
+            assertThatThrownBy(() -> service.delete(USER, txn.getId()))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("loan repayment");
+            verify(transactionRepository, never()).delete(any(Transaction.class));
+        }
+
+        @Test
+        void deleteOfGoalLinkedTransferIsRejectedWithGoalGuidance() {
+            Transaction txn = ownedTransaction();
+            when(transactionRepository.findByIdAndUserId(txn.getId(), USER)).thenReturn(Optional.of(txn));
+            when(loanRepository.existsByTransactionId(txn.getId())).thenReturn(false);
+            when(loanPaymentRepository.existsByTransactionId(txn.getId())).thenReturn(false);
+            when(goalContributionRepository.existsByTransactionId(txn.getId())).thenReturn(true);
+
+            assertThatThrownBy(() -> service.delete(USER, txn.getId()))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("savings goal");
+            verify(transactionRepository, never()).delete(any(Transaction.class));
+        }
+
+        @Test
+        void unlinkedTransactionsKeepWorking() {
+            Transaction txn = ownedTransaction();
+            when(transactionRepository.findByIdAndUserId(txn.getId(), USER)).thenReturn(Optional.of(txn));
+            when(loanRepository.existsByTransactionId(txn.getId())).thenReturn(false);
+            when(loanPaymentRepository.existsByTransactionId(txn.getId())).thenReturn(false);
+            when(goalContributionRepository.existsByTransactionId(txn.getId())).thenReturn(false);
+
+            service.delete(USER, txn.getId());
+
+            verify(transactionRepository).delete(txn);
+        }
     }
 
     private TransactionDtos.CreateTransactionRequest income(UUID from, UUID to, UUID categoryId) {

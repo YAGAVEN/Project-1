@@ -100,7 +100,12 @@ export async function flushOutbox() {
     while (queue.length > 0) {
       const entry = queue[0]
       try {
-        await api.post('/transactions', entry.body)
+        // The key matches the one sent on the original add attempt (and any
+        // earlier flush), so a request that committed but lost its response
+        // replays server-side instead of creating a duplicate (audit H-3).
+        await api.post('/transactions', entry.body, {
+          headers: { 'Idempotency-Key': entry.clientId },
+        })
       } catch {
         break
       }

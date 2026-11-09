@@ -22,11 +22,11 @@ import java.util.UUID;
 public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
         JpaSpecificationExecutor<Transaction> {
 
-    /** One scan for income + expense + count — conditional aggregation (backend.md §6.3). */
+    /** One scan for income + expense + income/expense row count — conditional aggregation (backend.md §6.3). */
     @Query("""
             select coalesce(sum(case when t.transactionType = :income then t.amount else 0 end), 0),
                    coalesce(sum(case when t.transactionType = :expense then t.amount else 0 end), 0),
-                   count(t)
+                   coalesce(sum(case when t.transactionType in (:income, :expense) then 1 else 0 end), 0)
             from Transaction t
             where t.userId = :userId and t.transactionDate >= :start and t.transactionDate < :end
             """)

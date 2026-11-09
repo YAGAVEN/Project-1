@@ -23,20 +23,66 @@ export function formatINRCompact(value: number): string {
   return inrCompact.format(value)
 }
 
-export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10)
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+
+/**
+ * The local calendar date as ISO — never the UTC date. The previous
+ * `toISOString().slice(0, 10)` implementation returned *yesterday* for
+ * timezone-east-of-UTC users between local midnight and UTC midnight, which
+ * misdated every transaction added in that window (audit P0/H-1).
+ */
+export function todayISO(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`
+}
+
+function parseISODate(iso: string): { y: number; m: number; d: number } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!match) throw new Error(`Invalid ISO date: ${iso}`)
+  return { y: Number(match[1]), m: Number(match[2]), d: Number(match[3]) }
+}
+
+/** Days in a month, leap years included — UTC construction, so no timezone enters the math. */
+function daysInMonth(y: number, m: number): number {
+  return new Date(Date.UTC(y, m, 0)).getUTCDate()
+}
+
+/** Date-string arithmetic in pure ISO space: no local/UTC conversion, ever. */
+export function addDaysISO(iso: string, days: number): string {
+  const { y, m, d } = parseISODate(iso)
+  const t = new Date(Date.UTC(y, m - 1, d + days))
+  return `${t.getUTCFullYear()}-${pad2(t.getUTCMonth() + 1)}-${pad2(t.getUTCDate())}`
+}
+
+/**
+ * Month arithmetic with calendar-month clamping: Jan 31 + 1 month is Feb 28/29,
+ * not a date spilled into March. The previous `setMonth` implementation both
+ * spilled month-ends and lost a day per shift on UTC+ timezones (audit H-2).
+ */
+export function addMonthsISO(iso: string, months: number): string {
+  const { y, m, d } = parseISODate(iso)
+  const total = m - 1 + months
+  const ny = y + Math.floor(total / 12)
+  const nm = (((total % 12) + 12) % 12) + 1
+  const nd = Math.min(d, daysInMonth(ny, nm))
+  return `${ny}-${pad2(nm)}-${pad2(nd)}`
 }
 
 export function shiftAnchor(periodType: PeriodType, date: string, direction: 1 | -1): string {
-  const d = new Date(`${date}T00:00:00`)
-  if (periodType === 'DAY') d.setDate(d.getDate() + direction)
-  if (periodType === 'WEEK') d.setDate(d.getDate() + 7 * direction)
-  if (periodType === 'MONTH') d.setMonth(d.getMonth() + direction)
   // rolling windows shift by their own span so windows never overlap
-  if (periodType === 'THREE_MONTHS') d.setMonth(d.getMonth() + 3 * direction)
-  if (periodType === 'SIX_MONTHS') d.setMonth(d.getMonth() + 6 * direction)
-  if (periodType === 'YEAR') d.setFullYear(d.getFullYear() + direction)
-  return d.toISOString().slice(0, 10)
+  switch (periodType) {
+    case 'DAY':
+      return addDaysISO(date, direction)
+    case 'WEEK':
+      return addDaysISO(date, 7 * direction)
+    case 'MONTH':
+      return addMonthsISO(date, direction)
+    case 'THREE_MONTHS':
+      return addMonthsISO(date, 3 * direction)
+    case 'SIX_MONTHS':
+      return addMonthsISO(date, 6 * direction)
+    case 'YEAR':
+      return addMonthsISO(date, 12 * direction)
+  }
 }
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -76,12 +122,10 @@ export function formatBucket(bucket: string): string {
 }
 
 /** "Today" / "Yesterday" / "12 Sep 2026" for ledger grouping. */
-export function formatDateLabel(iso: string): string {
-  const today = todayISO()
+export function formatDateLabel(iso: string, now: Date = new Date()): string {
+  const today = todayISO(now)
   if (iso === today) return 'Today'
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (iso === yesterday.toISOString().slice(0, 10)) return 'Yesterday'
+  if (iso === addDaysISO(today, -1)) return 'Yesterday'
   const d = new Date(`${iso}T00:00:00`)
   return `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`
 }

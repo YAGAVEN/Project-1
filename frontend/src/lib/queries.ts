@@ -54,8 +54,8 @@ function get<T>(url: string, params?: object): Promise<T> {
   return api.get<T>(url, { params }).then((response) => response.data)
 }
 
-function post<T>(url: string, body?: unknown): Promise<T> {
-  return api.post<T>(url, body).then((response) => response.data)
+function post<T>(url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+  return api.post<T>(url, body, headers ? { headers } : undefined).then((response) => response.data)
 }
 
 function put<T>(url: string, body?: unknown): Promise<T> {
@@ -208,8 +208,7 @@ function patchTransactionLists(patch: (data: PageResponse<Transaction>) => PageR
 }
 
 /** Cold-start path for quick adds — queue it on-device, then show it optimistically. */
-function queuePendingTransaction(body: TransactionBody): Transaction {
-  const clientId = crypto.randomUUID()
+function queuePendingTransaction(clientId: string, body: TransactionBody): Transaction {
   enqueueTransaction(clientId, body)
   const row = pendingRowFrom(clientId, body)
   patchTransactionLists((data) => ({
@@ -243,14 +242,22 @@ export function removePendingTransaction(clientId: string) {
 export function useCreateTransaction() {
   return useMutation({
     mutationFn: async (body: TransactionBody) => {
+      // One client-generated key for the whole life of this logical
+      // transaction: the initial POST and any outbox flush retry carry the
+      // same Idempotency-Key, so a committed-but-lost response can never
+      // become a second transaction (audit H-3). The backend replays the
+      // original 201 response for a repeated key.
+      const clientId = crypto.randomUUID()
+      const headers = { 'Idempotency-Key': clientId }
       try {
-        const created = await post<Transaction>('/transactions', body)
+        const created = await post<Transaction>('/transactions', body, headers)
         void queryClient.invalidateQueries()
         return created
       } catch (error) {
         if (!isUnreachable(error)) throw error
-        // Backend asleep — keep the add on-device; the outbox syncs it later.
-        return queuePendingTransaction(body)
+        // Backend asleep — keep the add on-device; the outbox syncs it later
+        // under the SAME key, so the flush can never double-create.
+        return queuePendingTransaction(clientId, body)
       }
     },
   })

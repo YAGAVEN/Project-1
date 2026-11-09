@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -97,7 +98,7 @@ class LoanServicePaymentTest {
         originTxn.setTransactionType(TransactionType.LOAN_GIVEN);
         originTxn.setFromAccountId(bank.getId());
 
-        when(loanRepository.findByIdAndUserId(lentLoan.getId(), USER)).thenReturn(Optional.of(lentLoan));
+        when(loanRepository.findByIdAndUserIdForUpdate(lentLoan.getId(), USER)).thenReturn(Optional.of(lentLoan));
         when(accountService.getOwnedAccount(USER, bank.getId())).thenReturn(bank);
         when(transactionRepository.save(any())).thenAnswer(invocation -> {
             Transaction saved = invocation.getArgument(0);
@@ -139,6 +140,22 @@ class LoanServicePaymentTest {
         ArgumentCaptor<Loan> loanCaptor = ArgumentCaptor.forClass(Loan.class);
         verify(loanRepository).save(loanCaptor.capture());
         assertThat(loanCaptor.getValue().getStatus()).isEqualTo(LoanStatus.PAID);
+    }
+
+    @Test
+    void repaymentPathLocksTheLoanRowSoConcurrentPaymentsSerialize() {
+        // Audit Phase 2 (H-5): the outstanding check must run while holding the
+        // loan row FOR UPDATE — asserted by using the locking lookup, which is
+        // what makes the overpayment check race-free on PostgreSQL.
+        when(loanPaymentRepository.sumByLoanId(lentLoan.getId())).thenReturn(BigDecimal.ZERO);
+        when(loanPaymentRepository.findByLoanIdOrderByPaymentDateAsc(lentLoan.getId()))
+                .thenReturn(List.of());
+
+        service.recordPayment(USER, lentLoan.getId(),
+                new LoanDtos.CreatePaymentRequest(new BigDecimal("100.00"), TODAY, bank.getId()));
+
+        verify(loanRepository).findByIdAndUserIdForUpdate(lentLoan.getId(), USER);
+        verify(loanRepository, never()).findByIdAndUserId(lentLoan.getId(), USER);
     }
 
     @Test

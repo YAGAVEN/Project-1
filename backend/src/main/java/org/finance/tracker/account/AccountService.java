@@ -119,8 +119,13 @@ public class AccountService {
             // Balances are derived (backend.md §6.2), so a manual correction
             // re-anchors the opening balance: opening' = desired − Σ(in) − Σ(out).
             // Rounded to paise so the recomputed balance lands exactly on the typed value.
-            BigDecimal netFlow = transactionRepository.netFlow(account.getId());
-            account.setOpeningBalance(request.balance().subtract(netFlow).setScale(2, RoundingMode.HALF_UP));
+            // The account row is locked first (audit Phase 2) so two concurrent
+            // true-ups re-anchor against the same baseline instead of racing.
+            Account locked = accountRepository.findByIdAndUserIdForUpdate(accountId, userId)
+                    .orElseThrow(() -> NotFoundException.resource("Account"));
+            BigDecimal netFlow = transactionRepository.netFlow(locked.getId());
+            locked.setOpeningBalance(request.balance().subtract(netFlow).setScale(2, RoundingMode.HALF_UP));
+            account = locked;
         }
         if (account.getAccountType() == AccountType.CREDIT_CARD) {
             if (request.creditLimit() != null) {
@@ -159,6 +164,23 @@ public class AccountService {
     /** Scoped lookup: another user's id must look like a missing one (404, never 403). */
     public Account getOwnedAccount(UUID userId, UUID accountId) {
         return findOwned(userId, accountId);
+    }
+
+    /**
+     * Audit Phase 2: net worth over EVERY account, deactivated included. A
+     * closed account whose balance was never transferred out still belongs to
+     * the user — hiding it made Total Balance silently shrink on deactivation.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, BigDecimal> balanceByAccountIncludingInactive(UUID userId) {
+        List<Account> accounts = accountRepository.findAllByUserId(userId);
+        Map<UUID, BigDecimal> netFlow = netFlowByAccount(accounts);
+        Map<UUID, BigDecimal> balances = new HashMap<>();
+        for (Account account : accounts) {
+            balances.put(account.getId(),
+                    account.getOpeningBalance().add(netFlow.getOrDefault(account.getId(), BigDecimal.ZERO)));
+        }
+        return balances;
     }
 
     /** backend.md §6.2 — opening + Σ(in) − Σ(out); one formula for every account type. */

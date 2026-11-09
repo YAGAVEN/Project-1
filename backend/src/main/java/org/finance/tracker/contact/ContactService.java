@@ -3,9 +3,11 @@ package org.finance.tracker.contact;
 import lombok.RequiredArgsConstructor;
 import org.finance.tracker.common.ConflictException;
 import org.finance.tracker.common.NotFoundException;
+import org.finance.tracker.contact.ContactDtos.ContactSummaryResponse;
 import org.finance.tracker.loan.Loan;
 import org.finance.tracker.loan.LoanPaymentRepository;
 import org.finance.tracker.loan.LoanRepository;
+import org.finance.tracker.loan.LoanStatus;
 import org.finance.tracker.loan.LoanType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,9 +44,13 @@ public class ContactService {
 
     /** §8.7 — summary: totalLent/totalReturned/totalBorrowed/totalRepaid/netPending. */
     @Transactional(readOnly = true)
-    public ContactDtos.ContactSummaryResponse summary(UUID userId, UUID contactId) {
+    public ContactSummaryResponse summary(UUID userId, UUID contactId) {
         Contact contact = getOwnedContact(userId, contactId);
-        List<Loan> loans = loanRepository.findByUserIdAndContactId(userId, contactId);
+        // Cancelled loans are mistaken entries, not money owed — the loan
+        // portfolio totals already exclude them; this summary now agrees
+        // (audit Phase 2, E-9).
+        List<Loan> loans = loanRepository.findByUserIdAndContactIdAndStatusNot(
+                userId, contactId, LoanStatus.CANCELLED);
 
         BigDecimal lent = BigDecimal.ZERO;
         BigDecimal borrowed = BigDecimal.ZERO;
