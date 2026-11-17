@@ -1,7 +1,5 @@
 package org.finance.tracker.idempotency;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.finance.tracker.common.BadRequestException;
 import org.finance.tracker.common.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -26,7 +25,7 @@ import static org.mockito.Mockito.when;
 /**
  * Audit Phase 2 (H-3): claim/replay semantics. Same key + same payload replays;
  * same key + different payload 409s; concurrent claims collapse on the PK.
- * Serialization uses a JavaTimeModule mapper like Spring Boot's own.
+ * Serialization uses Jackson 3 (tools.jackson) like Spring Boot's own mapper.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -38,11 +37,12 @@ class IdempotencyServiceTest {
     private IdempotencyKeyRepository repository;
 
     private IdempotencyService service;
-    private ObjectMapper mapper;
+    private JsonMapper mapper;
 
     @BeforeEach
     void setUp() {
-        mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        // Jackson 3 has java.time support built in — same defaults as Spring Boot's mapper
+        mapper = JsonMapper.builder().build();
         service = new IdempotencyService(repository, mapper);
     }
 

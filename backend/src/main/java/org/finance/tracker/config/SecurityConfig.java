@@ -1,6 +1,6 @@
 package org.finance.tracker.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +27,7 @@ import java.util.Map;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {

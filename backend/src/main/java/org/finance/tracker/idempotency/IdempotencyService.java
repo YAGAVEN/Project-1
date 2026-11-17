@@ -1,6 +1,6 @@
 package org.finance.tracker.idempotency;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.finance.tracker.common.BadRequestException;
 import org.finance.tracker.common.ConflictException;
